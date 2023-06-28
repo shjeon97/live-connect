@@ -1,0 +1,36 @@
+name: live-connect CI/CD
+
+on:
+  push:
+    branches: ["master"]
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    strategy:
+      matrix:
+        node-version: [14.x]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js ${{ matrix.node-version }} backend
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          cache-dependency-path: "./backend/package-lock.json"
+
+      - name: live-connect pull
+        run: |
+          git pull origin master
+        working-directory: ../../../../../server/live-connect
+
+      - name: live-connect docker restart
+        run: |
+          docker compose up --build -d
+        working-directory: ../../../../../server/live-connect
+
+      - name: live-connect docker old image delete
+        run: |
+          yes | docker image prune -a

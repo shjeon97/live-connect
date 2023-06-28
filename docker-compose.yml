@@ -1,0 +1,31 @@
+version: "3"
+services:
+  frontend:
+    restart: always
+    build:
+      dockerfile: Dockerfile
+      context: ./frontend
+    image: shjeon97/live-connect-frontend:1.0.0
+    container_name: live-connect-frontend
+    environment:
+      - TZ=Asia/Seoul
+    env_file:
+      - ./frontend/.env.production
+    ports:
+      - "3003:3000"
+
+  backend:
+    restart: always
+    build:
+      dockerfile: Dockerfile
+      context: ./backend
+    image: shjeon97/live-connect-backend:1.0.0
+    container_name: live-connect-backend
+    environment:
+      - TZ=Asia/Seoul
+    volumes:
+      - /main/public/live-connect/upload:/public/upload
+    env_file:
+      - ./backend/.env.production
+    ports:
+      - "4003:4000"
