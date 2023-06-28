@@ -16,6 +16,5 @@ COPY . .
 # # Build the application
 RUN npm run build
 
-# # Serve the application using a static server
-RUN npm install -g serve
-CMD ["serve", "-s", "build"]
+# # Run the application
+CMD ["npm", "start"]
