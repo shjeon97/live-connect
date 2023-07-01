@@ -3,6 +3,7 @@
 import { useForm } from "react-hook-form";
 import TextInput from "@/components/TextInput";
 import Alert from "@/components/Alert";
+import DarkModeToggle from "@/components/DarkModeToggle";
 
 interface FormData {
   roomName: string;
@@ -23,19 +24,31 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-6">
       <div className="w-full sm:w-10/12 md:w-8/12 lg:w-6/12 xl:w-4/12 mx-auto">
+        <div className="flex justify-between">
+          <h1 className="text-2xl font-bold mb-4 ">Live Connect</h1>
+          <DarkModeToggle />
+        </div>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div>
-            <h1 className="text-2xl font-bold mb-4">Live Connect</h1>
             <TextInput
               label="Room Name"
               type="text"
               placeholder="Enter your room name"
               {...register("roomName", {
                 required: "Room Name is required",
+                pattern: /^\S+$/,
               })}
             />
-            {errors.roomName && errors.roomName.message && (
-              <Alert type="error" message={errors.roomName.message} />
+            {errors.roomName &&
+              errors.roomName.message &&
+              errors.roomName.type === "required" && (
+                <Alert type="error" message={errors.roomName.message} />
+              )}
+            {errors.roomName && errors.roomName.type === "pattern" && (
+              <Alert
+                type="error"
+                message="Room Name should not contain spaces"
+              />
             )}
 
             <TextInput
@@ -44,17 +57,26 @@ export default function Home() {
               placeholder="Enter your user name"
               {...register("userName", {
                 required: "User Name is required",
+                pattern: /^\S+$/,
               })}
             />
-            {errors.userName && errors.userName.message && (
-              <Alert type="error" message={errors.userName.message} />
+            {errors.userName &&
+              errors.userName.message &&
+              errors.userName.type === "required" && (
+                <Alert type="error" message={errors.userName.message} />
+              )}
+            {errors.userName && errors.userName.type === "pattern" && (
+              <Alert
+                type="error"
+                message="User Name should not contain spaces"
+              />
             )}
           </div>
           <button
             type="submit"
             className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md mt-4"
           >
-            Submit
+            Enter the room
           </button>
         </form>
       </div>
