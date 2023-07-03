@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form";
 import TextInput from "@/components/TextInput";
 import Alert from "@/components/Alert";
-import DarkModeToggle from "@/components/DarkModeToggle";
+import { socket } from "@/api/socket-io";
 
 interface FormData {
   roomName: string;
@@ -18,16 +18,15 @@ export default function Home() {
   } = useForm<FormData>({ mode: "onChange" });
 
   const onSubmit = (data: FormData) => {
-    console.log(data); // Handle form submission data here
+    console.log(data);
+
+    console.log(socket);
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-6">
       <div className="w-full sm:w-10/12 md:w-8/12 lg:w-6/12 xl:w-4/12 mx-auto">
-        <div className="flex justify-between">
-          <h1 className="text-2xl font-bold mb-4 ">Live Connect</h1>
-          <DarkModeToggle />
-        </div>
+        <h1 className="text-2xl font-bold  ">Live Connect</h1>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div>
             <TextInput

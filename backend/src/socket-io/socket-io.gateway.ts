@@ -18,7 +18,7 @@ export class SocketIoGateway
     console.log('connected', client.id);
   }
 
-  //소켓 연결 해제시 제거
+  //소켓 연결 해제시
   handleDisconnect(client: Socket): void {
     console.log('disconnected', client.id);
   }
