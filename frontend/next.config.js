@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    basePath: "/absproxy/3004",
+    basePath: process.env.BASE_PATH,
 }
 
 module.exports = nextConfig
