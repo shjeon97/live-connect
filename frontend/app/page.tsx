@@ -18,8 +18,6 @@ export default function Home() {
   } = useForm<FormData>({ mode: "onChange" });
 
   const onSubmit = (data: FormData) => {
-    console.log(data);
-
     console.log(socket);
   };
 
