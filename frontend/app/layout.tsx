@@ -1,11 +1,12 @@
-import "./globals.css";
-import { Inter } from "next/font/google";
+import './globals.css';
+import { Inter } from 'next/font/google';
+import ReactQueryProvider from '@/components/ReactQueryProvider';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: "live connect",
-  description: "실시간 화상, 채팅 구현 사이트",
+  title: 'live connect',
+  description: '실시간 화상, 채팅 구현 사이트',
 };
 
 export default function RootLayout({
@@ -15,7 +16,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="kr">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <ReactQueryProvider>{children}</ReactQueryProvider>
+      </body>
     </html>
   );
 }
