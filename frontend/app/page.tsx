@@ -4,9 +4,10 @@
 import { useForm } from 'react-hook-form';
 import TextInput from '@/components/TextInput';
 import Alert from '@/components/Alert';
-import { socket } from '@/api/socket-io';
+import { socket } from '@/app/api/socket-io';
 import { useRouter } from 'next/navigation';
-import IndexedDb from '@/library/idb';
+import IndexedDb from '@/app/library/idb';
+import { INDEXED_DB_NAME, INDEXED_DB_STORE_LIST } from './constant';
 
 // 폼 데이터의 형태 정의
 interface FormData {
@@ -24,14 +25,14 @@ export default function Home() {
 
   const router = useRouter();
 
-  const INDEXEDDB_KEY = '내부 키';
-  const INDEXEDDB_STORE_KEY = '내부 스토어 키';
-
   // 폼 제출 처리 함수
-  const indexedDb = new IndexedDb(INDEXEDDB_KEY);
+  const indexedDb = new IndexedDb(INDEXED_DB_NAME);
 
   const onSubmit = (data: FormData) => {
-    indexedDb.createObjectStore([INDEXEDDB_STORE_KEY]);
+    indexedDb.createObjectStore([
+      INDEXED_DB_STORE_LIST.userName,
+      INDEXED_DB_STORE_LIST.roomName,
+    ]);
 
     router.push('/device/check');
   };
