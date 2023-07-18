@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 import { SocketIoModule } from './socket-io/socket-io.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { SocketIo } from './socket-io/entity/socket-io.entity';
 
 @Module({
   imports: [
@@ -46,7 +47,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
       // DB로그
       logging: process.env.NODE_ENV !== 'production',
       // 사용할 entity들 선언
-      entities: [],
+      entities: [SocketIo],
     }),
     SocketIoModule,
   ],

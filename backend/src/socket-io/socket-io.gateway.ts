@@ -7,11 +7,18 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { SocketIo } from './entity/socket-io.entity';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @WebSocketGateway({ cors: true })
 export class SocketIoGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
+  constructor(
+    @InjectRepository(SocketIo) private readonly socketIo: Repository<SocketIo>,
+  ) {}
+
   @WebSocketServer()
   server: Server;
 
