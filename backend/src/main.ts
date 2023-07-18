@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { json, urlencoded } from 'express';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -26,6 +27,16 @@ async function bootstrap() {
       credentials: true,
     });
   }
+
+  const config = new DocumentBuilder()
+    .setTitle('live-connect API')
+    .setDescription('live-connect API description')
+    .setVersion('1.0')
+    .addTag('live-connect')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
 
   try {
     await app.listen(process.env.PORT, '0.0.0.0', () =>
