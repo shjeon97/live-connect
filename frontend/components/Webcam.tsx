@@ -1,8 +1,11 @@
+'use client';
+
 import { useCallback, useEffect, useState } from 'react';
 import Webcam from 'react-webcam';
 
-const WebcamCapture = () => {
-  const [devices, setDevices] = useState<any>(null);
+const ReactWebcam = () => {
+  const [deviceId, setDeviceId] = useState({});
+  const [devices, setDevices] = useState<any>([]);
 
   const handleDevices = useCallback(
     (mediaDevices: any) =>
@@ -12,27 +15,21 @@ const WebcamCapture = () => {
 
   useEffect(() => {
     navigator.mediaDevices.enumerateDevices().then(handleDevices);
-  }, [handleDevices]);
+  }, [handleDevices, devices]);
 
   return (
     <>
-      {devices && devices[0]?.deviceId ? (
-        <>
+      {devices.map((device: any, key: number) => (
+        <div key={key}>
           <Webcam
             audio={false}
-            videoConstraints={{ deviceId: devices[0].deviceId }}
+            videoConstraints={{ deviceId: device.deviceId }}
           />
-          <select>
-            {devices.map((device: any, key: any) => (
-              <option key={key}>{device.label || `Device ${key + 1}`}</option>
-            ))}
-          </select>
-        </>
-      ) : (
-        <div>카메라 연결을 시도중입니다...</div>
-      )}
+          {device.label || `Device ${key + 1}`}
+        </div>
+      ))}
     </>
   );
 };
 
-export default WebcamCapture;
+export default ReactWebcam;

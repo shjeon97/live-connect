@@ -6,8 +6,6 @@ import TextInput from '@/components/TextInput';
 import Alert from '@/components/Alert';
 import { socket } from '@/app/api/socket-io';
 import { useRouter } from 'next/navigation';
-import { INDEXED_DB_NAME, INDEXED_DB_STORE_LIST } from './constant';
-import { IDBPDatabase, openDB } from 'idb';
 
 // 폼 데이터의 형태 정의
 interface FormData {
@@ -25,30 +23,19 @@ export default function Home() {
 
   const router = useRouter();
 
-  const onSubmit = async (data: FormData) => {
-    const idb = await openDB(INDEXED_DB_NAME, 1, {
-      upgrade(db: IDBPDatabase) {
-        if (!db.objectStoreNames.contains(INDEXED_DB_STORE_LIST.user)) {
-          db.createObjectStore(INDEXED_DB_STORE_LIST.user, {
-            keyPath: 'id',
-            autoIncrement: true,
-          });
-        }
-      },
-    });
-
-    const tx = idb.transaction(INDEXED_DB_STORE_LIST.user, 'readwrite');
-    const store = tx.objectStore(INDEXED_DB_STORE_LIST.user);
-    if (store) {
-      await store.clear();
+  socket.on('createSocketIo', async (data) => {
+    if (data.ok) {
+      router.push('/device/check');
+    } else if (data.error) {
+      alert(data.error);
     }
-    await store.put({
-      name: data.userName,
+  });
+
+  const onSubmit = async (data: FormData) => {
+    socket.emit('createSocketIo', {
       roomName: data.roomName,
-      socketId: socket.id,
+      userName: data.userName,
     });
-    await tx.done;
-    router.push('/device/check');
   };
 
   return (

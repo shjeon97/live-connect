@@ -5,6 +5,7 @@ import {
   OnGatewayDisconnect,
   SubscribeMessage,
   ConnectedSocket,
+  MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { SocketIo } from './entity/socket-io.entity';
@@ -30,11 +31,32 @@ export class SocketIoGateway
   //소켓 연결 해제시
   handleDisconnect(socket: Socket): void {
     console.log('disconnected', socket.id);
+    this.socketIo.delete({ clientId: socket.id });
   }
 
-  @SubscribeMessage('getSocketId')
-  handleMessage(@ConnectedSocket() socket: Socket) {
-    socket.broadcast.emit('socketId');
-    return socket.id;
+  @SubscribeMessage('createSocketIo')
+  async handleMessage(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() data: { roomName: string; userName: string },
+  ) {
+    try {
+      this.socketIo.save(
+        this.socketIo.create({
+          clientId: socket.id,
+          roomName: data.roomName,
+          userName: data.userName,
+        }),
+      );
+
+      this.server.to(socket.id).emit('createSocketIo', {
+        ok: true,
+      });
+    } catch (error) {
+      console.log(error);
+      this.server.to(socket.id).emit('createSocketIo', {
+        ok: false,
+        error,
+      });
+    }
   }
 }
