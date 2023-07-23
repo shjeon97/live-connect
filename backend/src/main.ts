@@ -3,9 +3,12 @@ import { AppModule } from './app.module';
 import { json, urlencoded } from 'express';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SocketIoAdapter } from './adapter/socket-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.useWebSocketAdapter(new SocketIoAdapter(app));
 
   // 전역 유효성 검사 파이프 정의
   app.useGlobalPipes(new ValidationPipe());

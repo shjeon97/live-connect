@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import Webcam from 'react-webcam';
 
 const ReactWebcam = () => {
-  const [deviceId, setDeviceId] = useState({});
+  const [deviceId, setDeviceId] = useState<any>(null);
   const [devices, setDevices] = useState<any>([]);
 
   const handleDevices = useCallback(
@@ -17,17 +17,27 @@ const ReactWebcam = () => {
     navigator.mediaDevices.enumerateDevices().then(handleDevices);
   }, [handleDevices, devices]);
 
+  // 웹캠 초기값
+  useEffect(() => {
+    if (!deviceId && devices[0]) {
+      setDeviceId(devices[0].deviceId);
+    }
+  }, [deviceId, devices]);
+
+  const handleWebcamChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setDeviceId(event.target.value);
+  };
+
   return (
     <>
-      {devices.map((device: any, key: number) => (
-        <div key={key}>
-          <Webcam
-            audio={false}
-            videoConstraints={{ deviceId: device.deviceId }}
-          />
-          {device.label || `Device ${key + 1}`}
-        </div>
-      ))}
+      <Webcam audio={false} videoConstraints={{ deviceId: deviceId }} />
+      <select onChange={handleWebcamChange}>
+        {devices.map((device: any, key: number) => (
+          <option key={key} value={device.deviceId}>
+            {device.label || `Device ${key + 1}`}
+          </option>
+        ))}
+      </select>
     </>
   );
 };
