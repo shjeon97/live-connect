@@ -30,8 +30,12 @@ export class SocketIoGateway
 
   //소켓 연결 해제시
   handleDisconnect(socket: Socket): void {
-    console.log('disconnected', socket.id);
-    this.socketIo.delete({ clientId: socket.id });
+    try {
+      console.log('disconnected', socket.id);
+      this.socketIo.delete({ clientId: socket.id });
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   @SubscribeMessage('createSocketIo')

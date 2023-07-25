@@ -30,8 +30,8 @@ const ReactWebcam = () => {
 
   return (
     <>
-      <Webcam audio={false} videoConstraints={{ deviceId: deviceId }} />
-      <select onChange={handleWebcamChange}>
+      <Webcam width="100%" videoConstraints={{ deviceId: deviceId }} />
+      <select className=" w-full p-2" onChange={handleWebcamChange}>
         {devices.map((device: any, key: number) => (
           <option key={key} value={device.deviceId}>
             {device.label || `Device ${key + 1}`}
