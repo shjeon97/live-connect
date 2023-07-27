@@ -5,7 +5,7 @@ import Webcam from 'react-webcam';
 
 const ReactWebcam = () => {
   const [deviceId, setDeviceId] = useState<any>(null);
-  const [devices, setDevices] = useState<any>([]);
+  const [devices, setDevices] = useState<any>(null);
 
   const handleDevices = useCallback(
     (mediaDevices: any) =>
@@ -14,12 +14,14 @@ const ReactWebcam = () => {
   );
 
   useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then(handleDevices);
+    if (!devices) {
+      navigator.mediaDevices.enumerateDevices().then(handleDevices);
+    }
   }, [handleDevices, devices]);
 
   // 웹캠 초기값
   useEffect(() => {
-    if (!deviceId && devices[0]) {
+    if (!deviceId && devices && devices[0]) {
       setDeviceId(devices[0].deviceId);
     }
   }, [deviceId, devices]);
@@ -30,13 +32,19 @@ const ReactWebcam = () => {
 
   return (
     <>
-      <Webcam width="100%" videoConstraints={{ deviceId: deviceId }} />
+      <Webcam
+        width="100%"
+        videoConstraints={{ deviceId: deviceId }}
+        audio={false}
+        muted={true}
+      />
       <select className=" w-full p-2" onChange={handleWebcamChange}>
-        {devices.map((device: any, key: number) => (
-          <option key={key} value={device.deviceId}>
-            {device.label || `Device ${key + 1}`}
-          </option>
-        ))}
+        {devices &&
+          devices.map((device: any, key: number) => (
+            <option key={key} value={device.deviceId}>
+              {device.label || `Device ${key + 1}`}
+            </option>
+          ))}
       </select>
     </>
   );
