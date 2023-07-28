@@ -44,6 +44,8 @@ import { SocketIo } from './socket-io/entity/socket-io.entity';
       database: process.env.DB_NAME,
       // 마이그레이션
       synchronize: process.env.NODE_ENV !== 'production',
+      // hot load 사용시 선언
+      keepConnectionAlive: true,
       // DB로그
       logging: process.env.NODE_ENV !== 'production',
       // 사용할 entity들 선언

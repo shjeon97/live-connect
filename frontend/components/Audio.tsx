@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 
 interface AudioDevice {
   deviceId: string;
@@ -8,7 +8,6 @@ interface AudioDevice {
 }
 
 const Audio: React.FC = () => {
-  const audioRef = useRef<HTMLAudioElement>(null);
   const [volume, setVolume] = useState<number>(0);
   const [audios, setAudios] = useState<AudioDevice[]>([]);
   const [deviceId, setDeviceId] = useState<string>('default');
@@ -36,11 +35,10 @@ const Audio: React.FC = () => {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             deviceId,
+            echoCancellation: true,
+            noiseSuppression: true,
           },
         });
-        if (audioRef.current) {
-          audioRef.current.srcObject = stream;
-        }
 
         const audioContext = new AudioContext();
         const analyser = audioContext.createAnalyser();
@@ -79,7 +77,7 @@ const Audio: React.FC = () => {
 
   return (
     <>
-      <p className="text-6xl font-bold">{volume.toFixed(2)}</p>
+      <meter className="w-full" max="100" value={volume.toFixed(2)}></meter>
       <select className="w-full p-2" onChange={handleWebcamChange}>
         {audios.map((audio, key) => (
           <option key={key} value={audio.deviceId}>
