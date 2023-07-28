@@ -12,20 +12,18 @@ const Audio: React.FC = () => {
   const [audios, setAudios] = useState<AudioDevice[]>([]);
   const [deviceId, setDeviceId] = useState<string>('default');
 
-  const handleAudios = useCallback(
-    (mediaDevices: MediaDeviceInfo[]) =>
-      setAudios(
-        mediaDevices
-          .filter(({ kind }) => kind === 'audioinput')
-          .map(({ deviceId, label }) => ({ deviceId, label })),
-      ),
-    [setAudios],
-  );
+  const handleAudios = useCallback((mediaDevices: MediaDeviceInfo[]) => {
+    const audioDevices = mediaDevices
+      .filter(({ kind }) => kind === 'audioinput')
+      .map(({ deviceId, label }) => ({ deviceId, label }));
+    setAudios(audioDevices);
+  }, []);
+
   useEffect(() => {
-    if (!audios.length) {
+    if (audios.length === 0) {
       navigator.mediaDevices.enumerateDevices().then(handleAudios);
     }
-  }, [handleAudios, audios]);
+  }, [audios, handleAudios]);
 
   useEffect(() => {
     let stream: MediaStream;
@@ -44,8 +42,6 @@ const Audio: React.FC = () => {
         const analyser = audioContext.createAnalyser();
         const source = audioContext.createMediaStreamSource(stream);
         source.connect(analyser);
-        analyser.connect(audioContext.destination);
-
         analyser.fftSize = 256;
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
@@ -67,18 +63,20 @@ const Audio: React.FC = () => {
     getAudioStream();
 
     return () => {
-      stream?.getTracks().forEach((track) => track.stop());
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
     };
-  }, [audios, deviceId]);
+  }, [deviceId]);
 
-  const handleWebcamChange = (event: ChangeEvent<HTMLSelectElement>) => {
+  const handleAudioDeviceChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setDeviceId(event.target.value);
   };
 
   return (
     <>
-      <meter className="w-full" max="100" value={volume.toFixed(2)}></meter>
-      <select className="w-full p-2" onChange={handleWebcamChange}>
+      <meter className="w-full" max="100" value={volume.toFixed(2)} />
+      <select className="w-full p-2" onChange={handleAudioDeviceChange}>
         {audios.map((audio, key) => (
           <option key={key} value={audio.deviceId}>
             {audio.label || `Audio ${key + 1}`}
