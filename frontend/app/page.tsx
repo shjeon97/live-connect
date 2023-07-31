@@ -32,6 +32,10 @@ export default function Home() {
   });
 
   const onSubmit = async (data: FormData) => {
+    await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: true,
+    });
     socket.emit('createSocketIo', {
       roomName: data.roomName,
       userName: data.userName,

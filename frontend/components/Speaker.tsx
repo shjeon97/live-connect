@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useCallback, useEffect, useState } from 'react';
+import Alert from './Alert';
 
 interface SpeakerDevice {
   deviceId: string;
@@ -12,10 +13,10 @@ const Speaker: React.FC = () => {
   const [deviceId, setDeviceId] = useState<string>('default');
 
   const handleSpeakers = useCallback((mediaDevices: MediaDeviceInfo[]) => {
-    const audioDevices = mediaDevices
+    const speakerDevices = mediaDevices
       .filter(({ kind }) => kind === 'audiooutput')
       .map(({ deviceId, label }) => ({ deviceId, label }));
-    setSpeakers(audioDevices);
+    setSpeakers(speakerDevices);
   }, []);
 
   useEffect(() => {
@@ -61,17 +62,24 @@ const Speaker: React.FC = () => {
 
   return (
     <>
-      <audio className="w-full" src="/sound/soundTest.mp3" controls>
-        Your browser does not support the
-        <code>audio</code> element.
-      </audio>
-      <select className="w-full p-2" onChange={handleSpeakerDeviceChange}>
-        {speakers.map((speaker, key) => (
-          <option key={key} value={speaker.deviceId}>
-            {speaker.label || `Speaker ${key + 1}`}
-          </option>
-        ))}
-      </select>
+      {speakers[0]?.deviceId && (
+        <>
+          <audio className="w-full" src="/sound/soundTest.mp3" controls>
+            Your browser does not support the
+            <code>audio</code> element.
+          </audio>
+          <select className="w-full p-2" onChange={handleSpeakerDeviceChange}>
+            {speakers.map((speaker, key) => (
+              <option key={key} value={speaker.deviceId}>
+                {speaker.label || `Speaker ${key + 1}`}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+      {!speakers[0]?.deviceId && (
+        <Alert type="error" message="Speaker connection failed." />
+      )}
     </>
   );
 };

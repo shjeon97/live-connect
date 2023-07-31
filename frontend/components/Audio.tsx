@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useCallback, useEffect, useState } from 'react';
+import Alert from './Alert';
 
 interface AudioDevice {
   deviceId: string;
@@ -75,14 +76,21 @@ const Audio: React.FC = () => {
 
   return (
     <>
-      <meter className="w-full" max="100" value={volume.toFixed(2)} />
-      <select className="w-full p-2" onChange={handleAudioDeviceChange}>
-        {audios.map((audio, key) => (
-          <option key={key} value={audio.deviceId}>
-            {audio.label || `Audio ${key + 1}`}
-          </option>
-        ))}
-      </select>
+      {audios[0]?.deviceId && (
+        <>
+          <meter className="w-full" max="256" value={volume.toFixed(2)} />
+          <select className="w-full p-2" onChange={handleAudioDeviceChange}>
+            {audios.map((audio, key) => (
+              <option key={key} value={audio.deviceId}>
+                {audio.label || `Audio ${key + 1}`}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+      {!audios[0]?.deviceId && (
+        <Alert type="error" message="Audio connection failed." />
+      )}
     </>
   );
 };
