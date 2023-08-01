@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import Alert from './Alert';
+import useCheckUserMedia from '@/hook/useCheckUserMedia';
 
 interface AudioDevice {
   deviceId: string;
@@ -12,6 +13,7 @@ const Audio: React.FC = () => {
   const [volume, setVolume] = useState<number>(0);
   const [audios, setAudios] = useState<AudioDevice[]>([]);
   const [deviceId, setDeviceId] = useState<string>('default');
+  const isPermissionUserMediaAudio = useCheckUserMedia('audio');
 
   const handleAudios = useCallback((mediaDevices: MediaDeviceInfo[]) => {
     const audioDevices = mediaDevices
@@ -21,10 +23,10 @@ const Audio: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (audios.length === 0) {
+    if (audios.length === 0 && isPermissionUserMediaAudio) {
       navigator.mediaDevices.enumerateDevices().then(handleAudios);
     }
-  }, [audios, handleAudios]);
+  }, [audios, handleAudios, isPermissionUserMediaAudio]);
 
   useEffect(() => {
     let stream: MediaStream;
@@ -76,20 +78,29 @@ const Audio: React.FC = () => {
 
   return (
     <>
-      {audios[0]?.deviceId && (
+      {isPermissionUserMediaAudio ? (
         <>
-          <meter className="w-full" max="256" value={volume.toFixed(2)} />
-          <select className="w-full p-2" onChange={handleAudioDeviceChange}>
-            {audios.map((audio, key) => (
-              <option key={key} value={audio.deviceId}>
-                {audio.label || `Audio ${key + 1}`}
-              </option>
-            ))}
-          </select>
+          {audios[0]?.deviceId && (
+            <>
+              <meter className="w-full" max="150" value={volume.toFixed(2)} />
+              <select className="w-full p-2" onChange={handleAudioDeviceChange}>
+                {audios.map((audio, key) => (
+                  <option key={key} value={audio.deviceId}>
+                    {audio.label || `Audio ${key + 1}`}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+          {!audios[0]?.deviceId && (
+            <Alert type="error" message="Audio access failed." />
+          )}
         </>
-      )}
-      {!audios[0]?.deviceId && (
-        <Alert type="error" message="Audio connection failed." />
+      ) : (
+        <Alert
+          type="error"
+          message="It looks like your browser is blocking access to audio identifiers. Because of this, it’s impossible to detect and manage all available audio."
+        />
       )}
     </>
   );

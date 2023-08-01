@@ -4,7 +4,7 @@
 import { useForm } from 'react-hook-form';
 import TextInput from '@/components/TextInput';
 import Alert from '@/components/Alert';
-import { socket } from '@/app/api/socket-io';
+import { socket } from '@/api/socket-io';
 import { useRouter } from 'next/navigation';
 
 // 폼 데이터의 형태 정의
@@ -32,10 +32,6 @@ export default function Home() {
   });
 
   const onSubmit = async (data: FormData) => {
-    await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: true,
-    });
     socket.emit('createSocketIo', {
       roomName: data.roomName,
       userName: data.userName,
