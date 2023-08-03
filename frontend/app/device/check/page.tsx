@@ -5,9 +5,21 @@ import Speaker from '@/components/Speaker';
 import ReactWebcam from '@/components/ReactWebcam';
 import useCheckUserMedia from '@/hook/useCheckUserMedia';
 import Alert from '@/components/Alert';
+import { useRouter } from 'next/navigation';
+import { socket } from '@/api/socket-io';
+import Swal from 'sweetalert2';
 
 export default function Page() {
   const isPermissionUserMedia = useCheckUserMedia('both');
+  const router = useRouter();
+
+  socket.on('enterTheRoom', async (data) => {
+    if (data.ok) {
+      router.push(`/room/${localStorage.getItem('roomName')}`);
+    } else if (data.error) {
+      Swal.fire('error', data.error);
+    }
+  });
 
   return (
     <>
@@ -30,6 +42,12 @@ export default function Page() {
           <button
             type="submit"
             className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md mt-4"
+            onClick={() =>
+              socket.emit('enterTheRoom', {
+                roomName: localStorage.getItem('roomName'),
+                userName: localStorage.getItem('userName'),
+              })
+            }
           >
             connect room
           </button>

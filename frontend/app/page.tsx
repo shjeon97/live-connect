@@ -6,6 +6,7 @@ import TextInput from '@/components/TextInput';
 import Alert from '@/components/Alert';
 import { socket } from '@/api/socket-io';
 import { useRouter } from 'next/navigation';
+import Swal from 'sweetalert2';
 
 // 폼 데이터의 형태 정의
 interface FormData {
@@ -27,11 +28,13 @@ export default function Home() {
     if (data.ok) {
       router.push('/device/check');
     } else if (data.error) {
-      alert(data.error);
+      Swal.fire('error', data.error);
     }
   });
 
   const onSubmit = async (data: FormData) => {
+    localStorage.setItem('roomName', data.roomName);
+    localStorage.setItem('userName', data.userName);
     socket.emit('createSocketIo', {
       roomName: data.roomName,
       userName: data.userName,

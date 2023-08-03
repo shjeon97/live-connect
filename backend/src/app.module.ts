@@ -5,6 +5,7 @@ import * as Joi from 'joi';
 import { SocketIoModule } from './socket-io/socket-io.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SocketIo } from './socket-io/entity/socket-io.entity';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { SocketIo } from './socket-io/entity/socket-io.entity';
       // 사용할 entity들 선언
       entities: [SocketIo],
     }),
+    ScheduleModule.forRoot(),
     SocketIoModule,
   ],
   controllers: [],
