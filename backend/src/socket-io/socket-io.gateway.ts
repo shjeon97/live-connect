@@ -32,7 +32,7 @@ export class SocketIoGateway
     this.logger.log('connected', socket.id);
   }
 
-  //소켓 연결 해제시c
+  //소켓 연결 해제시
   handleDisconnect(socket: Socket): void {
     try {
       this.logger.log('disconnected', socket.id);
@@ -43,47 +43,12 @@ export class SocketIoGateway
   }
 
   @Cron('0 0 4 * * *')
-  handleCron() {
+  handleCronDeleteSocketIo() {
     const twoDaysAgo = moment().subtract(2, 'days').toDate();
     this.socketIo.delete({ createdAt: MoreThanOrEqual(twoDaysAgo) });
     this.logger.debug('Delete socketIo entities created 2 days ago');
   }
 
-  @SubscribeMessage('createSocketIo')
-  async createSocketIo(
-    @ConnectedSocket() socket: Socket,
-    @MessageBody() data: { roomName: string; userName: string },
-  ) {
-    try {
-      const exist = await this.socketIo.findOne({
-        where: { roomName: data.roomName, userName: data.userName },
-      });
-      if (exist) {
-        return this.server.to(socket.id).emit('createSocketIo', {
-          ok: false,
-          error: 'This name is already in use. Please use a different name.',
-        });
-      }
-
-      this.socketIo.save(
-        this.socketIo.create({
-          clientId: socket.id,
-          roomName: data.roomName,
-          userName: data.userName,
-        }),
-      );
-
-      this.server.to(socket.id).emit('createSocketIo', {
-        ok: true,
-      });
-    } catch (error) {
-      this.logger.error(error);
-      this.server.to(socket.id).emit('createSocketIo', {
-        ok: false,
-        error,
-      });
-    }
-  }
   @SubscribeMessage('enterTheRoom')
   async enterTheRoom(
     @ConnectedSocket() socket: Socket,

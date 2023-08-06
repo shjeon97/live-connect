@@ -7,6 +7,8 @@ import Alert from '@/components/Alert';
 import { socket } from '@/api/socket-io';
 import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
+import { useEffect } from 'react';
+import { createSocketIo, deleteSocketIo } from '@/api/fetch';
 
 // 폼 데이터의 형태 정의
 interface FormData {
@@ -24,21 +26,61 @@ export default function Home() {
 
   const router = useRouter();
 
-  socket.on('createSocketIo', async (data) => {
-    if (data.ok) {
-      router.push('/device/check');
-    } else if (data.error) {
-      Swal.fire('error', data.error);
+  useEffect(() => {
+    if (localStorage.getItem('userName') || localStorage.getItem('roomName')) {
+      const handleDeleteSocketIo = async () => {
+        const response = await deleteSocketIo(socket.id);
+
+        if (!response.ok) {
+          // Handle error if needed
+          Swal.fire(
+            'error',
+            `Failed to fetch data: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        const result = await response.json();
+
+        if (result.error) {
+          Swal.fire('error', result.error);
+        }
+      };
+      handleDeleteSocketIo();
+
+      localStorage.removeItem('roomName');
+      localStorage.removeItem('userName');
     }
-  });
+  }, []);
 
   const onSubmit = async (data: FormData) => {
-    localStorage.setItem('roomName', data.roomName);
-    localStorage.setItem('userName', data.userName);
-    socket.emit('createSocketIo', {
-      roomName: data.roomName,
-      userName: data.userName,
-    });
+    if (!socket.id) {
+      Swal.fire('error', 'socket id not found');
+      return;
+    }
+
+    const response = await createSocketIo(
+      data.roomName,
+      data.userName,
+      socket.id,
+    );
+
+    if (!response.ok) {
+      // Handle error if needed
+      Swal.fire(
+        'error',
+        `Failed to fetch data: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const result = await response.json();
+
+    if (result.ok) {
+      localStorage.setItem('roomName', data.roomName);
+      localStorage.setItem('userName', data.userName);
+      router.push('/device/check');
+    } else if (result.error) {
+      Swal.fire('error', result.error);
+    }
   };
 
   return (
