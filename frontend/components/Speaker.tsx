@@ -9,8 +9,11 @@ interface SpeakerDevice {
   deviceId: string;
   label: string;
 }
+interface SpeakerProps {
+  isSoundTest?: boolean;
+}
 
-const Speaker: React.FC = () => {
+const Speaker: React.FC<SpeakerProps> = ({ isSoundTest = false }) => {
   const [speakers, setSpeakers] = useState<SpeakerDevice[]>([]);
   const [deviceId, setDeviceId] = useState<string>('default');
   const isPermissionUserMediaSpeaker = useCheckUserMedia('audio');
@@ -61,15 +64,18 @@ const Speaker: React.FC = () => {
         <>
           {speakers[0]?.deviceId && (
             <>
-              <audio
-                ref={audioRef}
-                className="w-full"
-                src="/sound/soundTest.mp3"
-                controls
-              >
-                Your browser does not support the
-                <code>audio</code> element.
-              </audio>
+              {isSoundTest && (
+                <audio
+                  ref={audioRef}
+                  className="w-full"
+                  src="/sound/soundTest.mp3"
+                  controls
+                >
+                  Your browser does not support the
+                  <code>audio</code> element.
+                </audio>
+              )}
+
               <select
                 className="w-full p-2"
                 onChange={handleSpeakerDeviceChange}
@@ -87,10 +93,13 @@ const Speaker: React.FC = () => {
           ) : (
             browserType === BrowserType.Safari && (
               <>
-                <audio className="w-full" src="/sound/soundTest.mp3" controls>
-                  Your browser does not support the
-                  <code>audio</code> element.
-                </audio>
+                {isSoundTest && (
+                  <audio className="w-full" src="/sound/soundTest.mp3" controls>
+                    Your browser does not support the
+                    <code>audio</code> element.
+                  </audio>
+                )}
+
                 <select
                   className="w-full p-2"
                   onChange={handleSpeakerDeviceChange}

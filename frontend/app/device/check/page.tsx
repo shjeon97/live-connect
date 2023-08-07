@@ -47,7 +47,7 @@ export default function Page() {
               <Audio />
             </div>
             <div className=" w-96">
-              <Speaker />
+              <Speaker isSoundTest={true} />
             </div>
           </div>
           <div className="flex justify-center">
