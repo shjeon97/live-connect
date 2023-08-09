@@ -33,10 +33,16 @@ export class SocketIoGateway
   }
 
   //소켓 연결 해제시
-  handleDisconnect(socket: Socket): void {
+  async handleDisconnect(socket: Socket): Promise<void> {
     try {
       this.logger.log('disconnected', socket.id);
-      this.socketIo.delete({ clientId: socket.id });
+      const socketIo = await this.socketIo.findOne({
+        where: { clientId: socket.id },
+      });
+      this.server.to(socketIo.roomName).emit('userExitTheRoom', {
+        userName: socketIo.userName,
+      });
+      this.socketIo.delete(socketIo);
     } catch (error) {
       this.logger.error(error);
     }
@@ -73,6 +79,13 @@ export class SocketIoGateway
           this.socketIo.save(socketIo);
         }
 
+        this.server.to(data.roomName).emit('userEnterTheRoom', {
+          ok: true,
+          userName: data.userName,
+        });
+
+        socket.join(data.roomName);
+
         this.server.to(socket.id).emit('enterTheRoom', {
           ok: true,
         });
@@ -81,7 +94,44 @@ export class SocketIoGateway
       this.logger.error(error);
       this.server.to(socket.id).emit('enterTheRoom', {
         ok: false,
-        error: 'error while entering the room',
+        error: 'Error while entering the room',
+      });
+    }
+  }
+
+  @SubscribeMessage('findSocketIo')
+  async findSocketIo(@ConnectedSocket() socket: Socket) {
+    try {
+      const socketIo = await this.socketIo.findOne({
+        where: { clientId: socket.id },
+      });
+      if (!socketIo) {
+        this.server.to(socket.id).emit('exitTheRoom');
+      }
+    } catch (error) {
+      this.logger.error(error);
+      this.server.to(socket.id).emit('exitTheRoom');
+    }
+  }
+
+  @SubscribeMessage('sendRoomMessage')
+  async sendRoomMessage(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody()
+    data: { roomName: string; userName: string; message: string },
+  ) {
+    try {
+      this.server.to(data.roomName).emit('sendRoomMessage', {
+        ok: true,
+        type: 'message',
+        userName: data.userName,
+        message: data.message,
+      });
+    } catch (error) {
+      this.logger.error(error);
+      this.server.to(socket.id).emit('sendRoomMessage', {
+        ok: false,
+        error: 'Fail send message.',
       });
     }
   }

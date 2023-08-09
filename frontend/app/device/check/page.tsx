@@ -23,14 +23,16 @@ export default function Page() {
     }
   }, []);
 
-  socket.on('enterTheRoom', async (data) => {
-    if (data.ok) {
-      router.push(`/room/${localStorage.getItem('roomName')}`);
-    } else if (data.error) {
-      await Swal.fire('error', data.error);
-      router.push(`/`);
-    }
-  });
+  useEffect(() => {
+    socket.on('enterTheRoom', async (data) => {
+      if (data.ok) {
+        router.push(`/room/${localStorage.getItem('roomName')}`);
+      } else if (data.error) {
+        await Swal.fire('error', data.error);
+        router.push(`/`);
+      }
+    });
+  }, []);
 
   return (
     <>
