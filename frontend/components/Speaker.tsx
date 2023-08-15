@@ -22,9 +22,21 @@ const Speaker: React.FC<SpeakerProps> = ({ isSoundTest = false }) => {
 
   const handleSpeakers = useCallback((mediaDevices: MediaDeviceInfo[]) => {
     const speakerDevices = mediaDevices
-      .filter(({ kind }) => kind === 'audiooutput')
+      .filter(
+        ({ kind, deviceId }) =>
+          kind === 'audiooutput' && deviceId !== 'default',
+      )
       .map(({ deviceId, label }) => ({ deviceId, label }));
     setSpeakers(speakerDevices);
+
+    const speakerTracks = async () => {
+      const speaker = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: speakerDevices[0]?.deviceId },
+      });
+
+      setDeviceId(speakerDevices[0]?.deviceId);
+    };
+    speakerTracks();
   }, []);
 
   useEffect(() => {
@@ -34,7 +46,6 @@ const Speaker: React.FC<SpeakerProps> = ({ isSoundTest = false }) => {
   }, [speakers, handleSpeakers, isPermissionUserMediaSpeaker]);
 
   useEffect(() => {
-    let stream: MediaStream;
     try {
       if (browserType !== BrowserType.Unknown) {
         if (browserType !== BrowserType.Safari) {
@@ -47,11 +58,6 @@ const Speaker: React.FC<SpeakerProps> = ({ isSoundTest = false }) => {
     } catch (err) {
       console.error('Error accessing speaker:', err);
     }
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
-    };
   }, [browserType, deviceId]);
 
   const handleSpeakerDeviceChange = (event: ChangeEvent<HTMLSelectElement>) => {

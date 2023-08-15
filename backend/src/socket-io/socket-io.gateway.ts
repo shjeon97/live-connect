@@ -14,6 +14,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import * as moment from 'moment';
 import { Logger } from '@nestjs/common';
+import { instrument } from '@socket.io/admin-ui';
 
 @WebSocketGateway({ cors: true })
 export class SocketIoGateway
@@ -23,6 +24,13 @@ export class SocketIoGateway
     @InjectRepository(SocketIo) private readonly socketIo: Repository<SocketIo>,
   ) {}
   private readonly logger = new Logger(SocketIoGateway.name);
+
+  afterInit() {
+    instrument(this.server, {
+      auth: false,
+      mode: 'development',
+    });
+  }
 
   @WebSocketServer()
   server: Server;
@@ -41,11 +49,18 @@ export class SocketIoGateway
       });
       this.server.to(socketIo.roomName).emit('userExitTheRoom', {
         userName: socketIo.userName,
+        totalUsersCount: await this.totalCountOfUsersInTheRoom(
+          socketIo.roomName,
+        ),
       });
       this.socketIo.delete(socketIo);
     } catch (error) {
       this.logger.error(error);
     }
+  }
+
+  async totalCountOfUsersInTheRoom(roomName: string): Promise<number | null> {
+    return this.server.sockets.adapter.rooms.get(roomName)?.size;
   }
 
   @Cron('0 0 4 * * *')
@@ -78,17 +93,21 @@ export class SocketIoGateway
           socketIo.clientId = socket.id;
           this.socketIo.save(socketIo);
         }
-
-        this.server.to(data.roomName).emit('userEnterTheRoom', {
+        this.server.to(socket.id).emit('enterTheRoom', {
           ok: true,
-          userName: data.userName,
         });
 
         socket.join(data.roomName);
 
-        this.server.to(socket.id).emit('enterTheRoom', {
-          ok: true,
-        });
+        setTimeout(async () => {
+          socket.broadcast.to(data.roomName).emit('userEnterTheRoom', {
+            ok: true,
+            userName: data.userName,
+            totalUsersCount: await this.totalCountOfUsersInTheRoom(
+              data.roomName,
+            ),
+          });
+        }, 1000);
       }
     } catch (error) {
       this.logger.error(error);
@@ -132,6 +151,66 @@ export class SocketIoGateway
       this.server.to(socket.id).emit('sendRoomMessage', {
         ok: false,
         error: 'Fail send message.',
+      });
+    }
+  }
+
+  @SubscribeMessage('offer')
+  async offer(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody()
+    data: { offer: any; roomName: string },
+  ) {
+    try {
+      socket.broadcast.to(data.roomName).emit('offer', {
+        ok: true,
+        offer: data.offer,
+      });
+    } catch (error) {
+      this.logger.error(error);
+      socket.broadcast.to(data.roomName).emit('offer', {
+        ok: false,
+        error: 'Fail offer',
+      });
+    }
+  }
+
+  @SubscribeMessage('answer')
+  async answer(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody()
+    data: { answer: any; roomName: string },
+  ) {
+    try {
+      socket.broadcast.to(data.roomName).emit('answer', {
+        ok: true,
+        answer: data.answer,
+      });
+    } catch (error) {
+      this.logger.error(error);
+      socket.broadcast.to(data.roomName).emit('answer', {
+        ok: false,
+        error: 'Fail answer',
+      });
+    }
+  }
+
+  @SubscribeMessage('ice')
+  async ice(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody()
+    data: { ice: any; roomName: string },
+  ) {
+    try {
+      socket.broadcast.to(data.roomName).emit('ice', {
+        ok: true,
+        ice: data.ice,
+      });
+    } catch (error) {
+      this.logger.error(error);
+      socket.broadcast.to(data.roomName).emit('ice', {
+        ok: false,
+        error: 'Fail ice',
       });
     }
   }

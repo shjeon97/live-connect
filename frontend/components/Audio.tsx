@@ -9,18 +9,35 @@ interface AudioDevice {
   label: string;
 }
 
-const Audio: React.FC = () => {
+interface AudioProps {
+  getAudio?: any;
+}
+
+const Audio: React.FC<AudioProps> = ({ getAudio = null }) => {
   const [volume, setVolume] = useState<number>(0);
   const [audios, setAudios] = useState<AudioDevice[]>([]);
   const [deviceId, setDeviceId] = useState<string>('default');
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [audio, setAudio] = useState<any>(null);
   const isPermissionUserMediaAudio = useCheckUserMedia('audio');
 
   const handleAudios = useCallback((mediaDevices: MediaDeviceInfo[]) => {
     const audioDevices = mediaDevices
-      .filter(({ kind }) => kind === 'audioinput')
+      .filter(
+        ({ kind, deviceId }) => kind === 'audioinput' && deviceId !== 'default',
+      )
       .map(({ deviceId, label }) => ({ deviceId, label }));
+
     setAudios(audioDevices);
+
+    const audioTracks = async () => {
+      const audio = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: audioDevices[0].deviceId },
+      });
+      setDeviceId(audioDevices[0].deviceId);
+      setAudio(audio);
+    };
+    audioTracks();
   }, []);
 
   useEffect(() => {
@@ -28,6 +45,12 @@ const Audio: React.FC = () => {
       navigator.mediaDevices.enumerateDevices().then(handleAudios);
     }
   }, [audios, handleAudios, isPermissionUserMediaAudio]);
+
+  useEffect(() => {
+    if (getAudio && audio) {
+      getAudio(audio.getTracks()[0]);
+    }
+  }, [audio]);
 
   useEffect(() => {
     let stream: MediaStream;
@@ -75,8 +98,18 @@ const Audio: React.FC = () => {
     };
   }, [deviceId, isMuted]);
 
-  const handleAudioDeviceChange = (event: ChangeEvent<HTMLSelectElement>) => {
+  const handleAudioDeviceChange = async (
+    event: ChangeEvent<HTMLSelectElement>,
+  ) => {
     setDeviceId(event.target.value);
+    if (getAudio) {
+      setAudio(
+        await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: event.target.value },
+        }),
+      );
+      getAudio(audio.getTracks()[0]);
+    }
   };
 
   return (
