@@ -3,16 +3,13 @@
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Alert from './Alert';
 import useCheckUserMedia from '@/hook/useCheckUserMedia';
+
 interface WebcamDevice {
   deviceId: string;
   label: string;
 }
 
-interface ReactWebcamProps {
-  getWebcam?: any;
-}
-
-const ReactWebcam: React.FC<ReactWebcamProps> = ({ getWebcam = null }) => {
+const WebcamTest: React.FC = () => {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [webcams, setWebcams] = useState<WebcamDevice[]>([]);
   const [webcam, setWebcam] = useState<any>(null);
@@ -47,9 +44,6 @@ const ReactWebcam: React.FC<ReactWebcamProps> = ({ getWebcam = null }) => {
   useEffect(() => {
     if (!deviceId && webcams && webcams[0]) {
       setDeviceId(webcams[0].deviceId);
-      if (getWebcam && webcam) {
-        getWebcam(webcam.getTracks()[0]);
-      }
     }
   }, [deviceId, webcams]);
   useEffect(() => {
@@ -57,25 +51,17 @@ const ReactWebcam: React.FC<ReactWebcamProps> = ({ getWebcam = null }) => {
       webcamRef.current.srcObject = webcam;
     }
   }, [webcamRef, webcam]);
-  useEffect(() => {
-    if (getWebcam && webcam) {
-      getWebcam(webcam.getTracks()[0]);
-    }
-  }, [webcam]);
 
   const handleWebcamChange = async (event: ChangeEvent<HTMLSelectElement>) => {
     setDeviceId(event.target.value);
-    if (getWebcam) {
-      setWebcam(
-        await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: event.target.value },
-        }),
-      );
-      (webcamRef.current.srcObject = await navigator.mediaDevices.getUserMedia({
+    setWebcam(
+      await navigator.mediaDevices.getUserMedia({
         video: { deviceId: event.target.value },
-      })),
-        getWebcam(webcam.getTracks()[0]);
-    }
+      }),
+    );
+    webcamRef.current.srcObject = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: event.target.value },
+    });
   };
 
   return (
@@ -88,7 +74,7 @@ const ReactWebcam: React.FC<ReactWebcamProps> = ({ getWebcam = null }) => {
                 <video ref={webcamRef} autoPlay={true} playsInline={true} />
               </>
               <button
-                className="absolute bottom-12 right-2 bg-blue-500 hover:bg-blue-700 text-white  py-1 px-2"
+                className="absolute bottom-12 right-2 rounded-xl bg-blue-500 hover:bg-blue-700 text-white  py-1 px-2"
                 onClick={() => {
                   setIsWebcamOff(!isWebcamOff);
                   const tracks = webcamRef.current.srcObject.getTracks();
@@ -122,4 +108,4 @@ const ReactWebcam: React.FC<ReactWebcamProps> = ({ getWebcam = null }) => {
   );
 };
 
-export default ReactWebcam;
+export default WebcamTest;

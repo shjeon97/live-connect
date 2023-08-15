@@ -9,16 +9,11 @@ interface AudioDevice {
   label: string;
 }
 
-interface AudioProps {
-  getAudio?: any;
-}
-
-const Audio: React.FC<AudioProps> = ({ getAudio = null }) => {
+const AudioTest: React.FC = () => {
   const [volume, setVolume] = useState<number>(0);
   const [audios, setAudios] = useState<AudioDevice[]>([]);
   const [deviceId, setDeviceId] = useState<string>('default');
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [audio, setAudio] = useState<any>(null);
   const isPermissionUserMediaAudio = useCheckUserMedia('audio');
 
   const handleAudios = useCallback((mediaDevices: MediaDeviceInfo[]) => {
@@ -31,11 +26,7 @@ const Audio: React.FC<AudioProps> = ({ getAudio = null }) => {
     setAudios(audioDevices);
 
     const audioTracks = async () => {
-      const audio = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: audioDevices[0].deviceId },
-      });
       setDeviceId(audioDevices[0].deviceId);
-      setAudio(audio);
     };
     audioTracks();
   }, []);
@@ -45,12 +36,6 @@ const Audio: React.FC<AudioProps> = ({ getAudio = null }) => {
       navigator.mediaDevices.enumerateDevices().then(handleAudios);
     }
   }, [audios, handleAudios, isPermissionUserMediaAudio]);
-
-  useEffect(() => {
-    if (getAudio && audio) {
-      getAudio(audio.getTracks()[0]);
-    }
-  }, [audio]);
 
   useEffect(() => {
     let stream: MediaStream;
@@ -102,14 +87,6 @@ const Audio: React.FC<AudioProps> = ({ getAudio = null }) => {
     event: ChangeEvent<HTMLSelectElement>,
   ) => {
     setDeviceId(event.target.value);
-    if (getAudio) {
-      setAudio(
-        await navigator.mediaDevices.getUserMedia({
-          audio: { deviceId: event.target.value },
-        }),
-      );
-      getAudio(audio.getTracks()[0]);
-    }
   };
 
   return (
@@ -177,4 +154,4 @@ const Audio: React.FC<AudioProps> = ({ getAudio = null }) => {
   );
 };
 
-export default Audio;
+export default AudioTest;

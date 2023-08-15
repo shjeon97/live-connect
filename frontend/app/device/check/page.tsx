@@ -1,8 +1,8 @@
 'use client';
 
-import Audio from '@/components/Audio';
+import AudioTest from '@/components/AudioTest';
 import Speaker from '@/components/Speaker';
-import ReactWebcam from '@/components/ReactWebcam';
+import WebcamTest from '@/components/WebcamTest';
 import useCheckUserMedia from '@/hook/useCheckUserMedia';
 import Alert from '@/components/Alert';
 import { useRouter } from 'next/navigation';
@@ -43,10 +43,10 @@ export default function Page() {
           </div>
           <div className="flex justify-center items-end xl:flex-nowrap flex-wrap  gap-8">
             <div className="w-96">
-              <ReactWebcam />
+              <WebcamTest />
             </div>
             <div className=" w-96">
-              <Audio />
+              <AudioTest />
             </div>
             <div className=" w-96">
               <Speaker isSoundTest={true} />
