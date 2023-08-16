@@ -45,11 +45,12 @@ export default function Page({ params }: { params: { name: string } }) {
   const [isWebcamOff, setIsWebcamOff] = useState<boolean>(false);
   const isPermissionUserMediaVideo = useCheckUserMedia('video');
   const webcamRef = useRef<any>(null);
-  const [myPeerConnection, setMyPeerConnection] = useState<RTCPeerConnection>(
+  const [myPeerConnection] = useState<RTCPeerConnection>(
     new RTCPeerConnection(servers),
   );
 
-  const [volume, setVolume] = useState<number>(0);
+  // const [volume, setVolume] = useState<number>(0);
+  const volumeRef = useRef<any>(null);
   const [audios, setAudios] = useState<Device[]>([]);
   const [audioDeviceId, setAudioDeviceId] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(true);
@@ -149,8 +150,6 @@ export default function Page({ params }: { params: { name: string } }) {
   };
 
   const handleTrack = async (event: any) => {
-    console.log(event);
-
     if (event.streams[0]) {
       if (event.track.kind === 'video') {
         webrtcWebcamRef.current.srcObject = event.streams[0];
@@ -184,14 +183,27 @@ export default function Page({ params }: { params: { name: string } }) {
   }, [webcamDeviceId, webcams]);
 
   useEffect(() => {
+    if (webrtcStream) {
+      webrtcStream
+        .getAudioTracks()
+        .forEach((track: any) => (track.enabled = !isMuted));
+      setWebrtcStream(webrtcStream);
+    }
+
     const getAudioStream = async () => {
       try {
         if (audioDeviceId && webrtcStream) {
-          webrtcStream.getAudioTracks()[0].enabled = !isMuted;
-          setWebrtcStream(webrtcStream);
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              deviceId: audioDeviceId,
+              echoCancellation: true,
+              noiseSuppression: true,
+            },
+          });
+
           const audioContext = new AudioContext();
           const analyser = audioContext.createAnalyser();
-          const source = audioContext.createMediaStreamSource(webrtcStream);
+          const source = audioContext.createMediaStreamSource(stream);
           source.connect(analyser);
           analyser.fftSize = 256;
           const bufferLength = analyser.frequencyBinCount;
@@ -202,26 +214,25 @@ export default function Page({ params }: { params: { name: string } }) {
               analyser.getByteFrequencyData(dataArray);
               const total = dataArray.reduce((acc, value) => acc + value, 0);
               const average = total / bufferLength;
-              setVolume(average);
+              volumeRef.current.value = average.toFixed(2);
             }
 
             requestAnimationFrame(updateVolume);
           };
 
           updateVolume();
+
+          return () => {
+            if (stream) {
+              stream.getTracks().forEach((track: any) => track.stop());
+            }
+          };
         }
       } catch (err) {
         console.error('Error accessing microphone:', err);
       }
     };
-
     getAudioStream();
-
-    return () => {
-      if (webrtcStream) {
-        webrtcStream.getTracks().forEach((track: any) => track.stop());
-      }
-    };
   }, [audioDeviceId, isMuted, webrtcStream]);
 
   useEffect(() => {
@@ -374,11 +385,11 @@ export default function Page({ params }: { params: { name: string } }) {
           if (audioSender) {
             await audioSender.replaceTrack(audioTrack);
           }
+          stream.getAudioTracks()[0].enabled = isWebcamOff;
           webcamRef.current.srcObject = stream;
-
           return;
         }
-        stream.getAudioTracks()[0].enabled = false;
+        stream.getAudioTracks()[0].enabled = isWebcamOff;
         setWebrtcStream(stream);
 
         if (webcamRef.current && !webcamRef.current.srcObject) {
@@ -455,9 +466,10 @@ export default function Page({ params }: { params: { name: string } }) {
                         <div>
                           <div className="flex gap-2">
                             <meter
+                              ref={volumeRef}
                               className="w-full"
                               max="150"
-                              value={volume.toFixed(2)}
+                              // value={volume.toFixed(2)}
                             />
                             <button onClick={() => setIsMuted(!isMuted)}>
                               {isMuted ? (
