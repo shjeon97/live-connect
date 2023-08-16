@@ -149,6 +149,8 @@ export default function Page({ params }: { params: { name: string } }) {
   };
 
   const handleTrack = async (event: any) => {
+    console.log(event);
+
     if (event.streams[0]) {
       if (event.track.kind === 'video') {
         webrtcWebcamRef.current.srcObject = event.streams[0];
@@ -356,23 +358,29 @@ export default function Page({ params }: { params: { name: string } }) {
 
         if (webrtcStream && webrtcStream.id !== stream.id && myPeerConnection) {
           const videoTrack = stream.getVideoTracks()[0];
+
           const videoSender = myPeerConnection
             .getSenders()
             .find((sender: any) => sender.track.kind === 'video');
           if (videoSender) {
-            videoSender.replaceTrack(videoTrack);
+            await videoSender.replaceTrack(videoTrack);
           }
 
           const audioTrack = stream.getAudioTracks()[0];
+
           const audioSender = myPeerConnection
             .getSenders()
             .find((sender: any) => sender.track.kind === 'audio');
           if (audioSender) {
-            audioSender.replaceTrack(audioTrack);
+            await audioSender.replaceTrack(audioTrack);
           }
+          webcamRef.current.srcObject = stream;
+
+          return;
         }
         stream.getAudioTracks()[0].enabled = false;
         setWebrtcStream(stream);
+
         if (webcamRef.current && !webcamRef.current.srcObject) {
           webcamRef.current.srcObject = stream;
         }
