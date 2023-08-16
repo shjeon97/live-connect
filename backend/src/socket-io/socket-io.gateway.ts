@@ -107,7 +107,7 @@ export class SocketIoGateway
               data.roomName,
             ),
           });
-        }, 1000);
+        }, 4000);
       }
     } catch (error) {
       this.logger.error(error);
