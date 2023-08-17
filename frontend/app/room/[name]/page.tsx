@@ -4,6 +4,7 @@ import { socket } from '@/api/socket-io';
 import Alert from '@/components/Alert';
 import Speaker from '@/components/Speaker';
 import useCheckUserMedia from '@/hook/useCheckUserMedia';
+import useLocalStorage from '@/hook/useLocalStorage';
 import { useRouter } from 'next/navigation';
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
@@ -33,7 +34,6 @@ const servers = {
 };
 
 export default function Page({ params }: { params: { name: string } }) {
-  const [userName] = useState(localStorage?.getItem('userName'));
   const [messages, setMessages] = useState<Messages[]>([]);
   const [message, setMessage] = useState<string>('');
   const [totalUsersCount, setTotalUsersCount] = useState(0);
@@ -49,7 +49,6 @@ export default function Page({ params }: { params: { name: string } }) {
     new RTCPeerConnection(servers),
   );
 
-  // const [volume, setVolume] = useState<number>(0);
   const volumeRef = useRef<any>(null);
   const [audios, setAudios] = useState<Device[]>([]);
   const [audioDeviceId, setAudioDeviceId] = useState<string | null>(null);
@@ -59,6 +58,15 @@ export default function Page({ params }: { params: { name: string } }) {
   const isPermissionUserMedia = useCheckUserMedia('both');
   const router = useRouter();
   const webrtcWebcamRef = useRef<any>(null);
+
+  const [localStorageRoomName] = useLocalStorage('roomName', null);
+  const [localStorageUserName] = useLocalStorage('userName', null);
+  const [localStorageAudioDeviceId, setLocalStorageAudioDeviceId] =
+    useLocalStorage('audioDeviceId', null);
+  const [localStorageWebcamDeviceId, setLocalStorageWebcamDeviceId] =
+    useLocalStorage('webcamDeviceId', null);
+  const [localStorageSpeakerDeviceId, setLocalStorageSpeakerDeviceId] =
+    useLocalStorage('speakerDeviceId', null);
 
   const handleWebcams = useCallback((mediaDevices: MediaDeviceInfo[]) => {
     const webcamDevices = mediaDevices
@@ -134,7 +142,7 @@ export default function Page({ params }: { params: { name: string } }) {
     event.preventDefault();
     if (socket && message) {
       socket.emit('sendRoomMessage', {
-        userName,
+        userName: localStorageUserName,
         roomName: params.name,
         message,
       });
@@ -178,11 +186,13 @@ export default function Page({ params }: { params: { name: string } }) {
   // 웹캠 초기값
   useEffect(() => {
     if (!webcamDeviceId && webcams && webcams[0]) {
-      setWebcamDeviceId(webcams[0].deviceId);
+      setWebcamDeviceId(localStorageWebcamDeviceId);
     }
   }, [webcamDeviceId, webcams]);
 
   useEffect(() => {
+    let stream: MediaStream;
+
     if (webrtcStream) {
       webrtcStream
         .getAudioTracks()
@@ -192,8 +202,8 @@ export default function Page({ params }: { params: { name: string } }) {
 
     const getAudioStream = async () => {
       try {
-        if (audioDeviceId && webrtcStream) {
-          const stream = await navigator.mediaDevices.getUserMedia({
+        if (audioDeviceId) {
+          stream = await navigator.mediaDevices.getUserMedia({
             audio: {
               deviceId: audioDeviceId,
               echoCancellation: true,
@@ -221,19 +231,18 @@ export default function Page({ params }: { params: { name: string } }) {
           };
 
           updateVolume();
-
-          return () => {
-            if (stream) {
-              stream.getTracks().forEach((track: any) => track.stop());
-            }
-          };
         }
       } catch (err) {
         console.error('Error accessing microphone:', err);
       }
     };
     getAudioStream();
-  }, [audioDeviceId, isMuted, webrtcStream]);
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track: any) => track.stop());
+      }
+    };
+  }, [audioDeviceId, isMuted]);
 
   useEffect(() => {
     if (audios.length === 0 && isPermissionUserMediaAudio) {
@@ -244,7 +253,7 @@ export default function Page({ params }: { params: { name: string } }) {
   // audio 초기값
   useEffect(() => {
     if (!audioDeviceId && audios && audios[0]) {
-      setAudioDeviceId(audios[0].deviceId);
+      setAudioDeviceId(localStorageAudioDeviceId);
     }
   }, [audioDeviceId, audios]);
 
@@ -378,18 +387,19 @@ export default function Page({ params }: { params: { name: string } }) {
           }
 
           const audioTrack = stream.getAudioTracks()[0];
+          audioTrack.enabled = !isMuted;
 
           const audioSender = myPeerConnection
             .getSenders()
             .find((sender: any) => sender.track.kind === 'audio');
           if (audioSender) {
+            audioTrack.enabled = !isMuted;
             await audioSender.replaceTrack(audioTrack);
           }
-          stream.getAudioTracks()[0].enabled = isWebcamOff;
           webcamRef.current.srcObject = stream;
           return;
         }
-        stream.getAudioTracks()[0].enabled = isWebcamOff;
+        stream.getAudioTracks()[0].enabled = !isMuted;
         setWebrtcStream(stream);
 
         if (webcamRef.current && !webcamRef.current.srcObject) {
@@ -420,7 +430,7 @@ export default function Page({ params }: { params: { name: string } }) {
                         />
                       </>
                       <div className=" absolute bottom-10  px-2 py-1 rounded-xl bg-black text-white ">
-                        {userName}
+                        {localStorageUserName}
                       </div>
                       <button
                         className="absolute bottom-10  right-0  rounded-xl  bg-blue-500 hover:bg-blue-700 text-white  py-1 px-2"
@@ -438,6 +448,7 @@ export default function Page({ params }: { params: { name: string } }) {
                       <select
                         className="w-full p-2"
                         onChange={handleWebcamChange}
+                        defaultValue={webcamDeviceId}
                       >
                         {webcams.map((device: any, key: number) => (
                           <option key={key} value={device.deviceId}>
@@ -469,7 +480,6 @@ export default function Page({ params }: { params: { name: string } }) {
                               ref={volumeRef}
                               className="w-full"
                               max="150"
-                              // value={volume.toFixed(2)}
                             />
                             <button onClick={() => setIsMuted(!isMuted)}>
                               {isMuted ? (
@@ -508,6 +518,7 @@ export default function Page({ params }: { params: { name: string } }) {
                           <select
                             className="w-full p-2"
                             onChange={handleAudioDeviceChange}
+                            defaultValue={audioDeviceId}
                           >
                             {audios.map((audio, key) => (
                               <option key={key} value={audio.deviceId}>
@@ -535,7 +546,9 @@ export default function Page({ params }: { params: { name: string } }) {
               </div>
             </div>
             <div className="flex justify-between items-center p-2 bg-slate-100 border-y-4">
-              <span className="p-2 bg-black text-white">{params.name}</span>
+              <span className="p-2 bg-black text-white">
+                {localStorageRoomName}
+              </span>
               <span>Users Count : {totalUsersCount}</span>
               <span>chat</span>
               <div className="bg-black"></div>

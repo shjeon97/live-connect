@@ -11,13 +11,17 @@ interface SpeakerDevice {
 }
 interface SpeakerProps {
   isSoundTest?: boolean;
+  getDeviceId?: any;
 }
 
-const Speaker: React.FC<SpeakerProps> = ({ isSoundTest = false }) => {
+const Speaker: React.FC<SpeakerProps> = ({
+  isSoundTest = false,
+  getDeviceId = null,
+}) => {
   const [speakers, setSpeakers] = useState<SpeakerDevice[]>([]);
-  const [deviceId, setDeviceId] = useState<string>('default');
+  const [deviceId, setDeviceId] = useState<string | null>(null);
   const isPermissionUserMediaSpeaker = useCheckUserMedia('audio');
-  const audioRef = useRef<HTMLMediaElement>(null);
+  const speakerRef = useRef<HTMLMediaElement>(null);
   const browserType = useBrowserType();
 
   const handleSpeakers = useCallback((mediaDevices: MediaDeviceInfo[]) => {
@@ -28,15 +32,7 @@ const Speaker: React.FC<SpeakerProps> = ({ isSoundTest = false }) => {
       )
       .map(({ deviceId, label }) => ({ deviceId, label }));
     setSpeakers(speakerDevices);
-
-    const speakerTracks = async () => {
-      const speaker = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: speakerDevices[0]?.deviceId },
-      });
-
-      setDeviceId(speakerDevices[0]?.deviceId);
-    };
-    speakerTracks();
+    setDeviceId(speakerDevices[0]?.deviceId);
   }, []);
 
   useEffect(() => {
@@ -49,8 +45,8 @@ const Speaker: React.FC<SpeakerProps> = ({ isSoundTest = false }) => {
     try {
       if (browserType !== BrowserType.Unknown) {
         if (browserType !== BrowserType.Safari) {
-          if (audioRef.current) {
-            const newRef = audioRef.current;
+          if (speakerRef.current) {
+            const newRef = speakerRef.current;
             (newRef as any).setSinkId(deviceId);
           }
         }
@@ -59,6 +55,12 @@ const Speaker: React.FC<SpeakerProps> = ({ isSoundTest = false }) => {
       console.error('Error accessing speaker:', err);
     }
   }, [browserType, deviceId]);
+
+  useEffect(() => {
+    if (getDeviceId) {
+      getDeviceId(deviceId);
+    }
+  }, [deviceId]);
 
   const handleSpeakerDeviceChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setDeviceId(event.target.value);
@@ -72,7 +74,7 @@ const Speaker: React.FC<SpeakerProps> = ({ isSoundTest = false }) => {
             <>
               {isSoundTest && (
                 <audio
-                  ref={audioRef}
+                  ref={speakerRef}
                   className="w-full"
                   src="/sound/soundTest.mp3"
                   controls

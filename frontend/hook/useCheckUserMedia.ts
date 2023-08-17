@@ -17,7 +17,10 @@ const useCheckUserMedia = (
       navigator.mediaDevices
         .getUserMedia(constraints)
         .then(() => setHasUserMedia(true))
-        .catch(() => setHasUserMedia(false));
+        .catch((error) => {
+          console.log(error);
+          setHasUserMedia(false);
+        });
     }
   }, [mediaType]);
 

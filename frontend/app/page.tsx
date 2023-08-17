@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
 import { useEffect } from 'react';
 import { createSocketIo, deleteSocketIo } from '@/api/fetch';
+import useLocalStorage from '@/hook/useLocalStorage';
 
 // 폼 데이터의 형태 정의
 interface FormData {
@@ -17,6 +18,15 @@ interface FormData {
 }
 
 export default function Home() {
+  const [localStorageRoomName, setLocalStorageRoomName] = useLocalStorage(
+    'roomName',
+    null,
+  );
+  const [localStorageUserName, setLocalStorageUserName] = useLocalStorage(
+    'userName',
+    null,
+  );
+
   // useForm 훅 초기화 및 속성 분해
   const {
     handleSubmit,
@@ -27,10 +37,9 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (localStorage.getItem('userName') || localStorage.getItem('roomName')) {
+    if (localStorageRoomName || localStorageUserName) {
       const handleDeleteSocketIo = async () => {
         const response = await deleteSocketIo(socket.id);
-
         if (!response.ok) {
           // Handle error if needed
           Swal.fire(
@@ -38,17 +47,12 @@ export default function Home() {
             `Failed to fetch data: ${response.status} ${response.statusText}`,
           );
         }
-
         const result = await response.json();
-
         if (result.error) {
           Swal.fire('error', result.error);
         }
       };
       handleDeleteSocketIo();
-
-      localStorage.removeItem('roomName');
-      localStorage.removeItem('userName');
     }
   }, []);
 
@@ -75,13 +79,17 @@ export default function Home() {
     const result = await response.json();
 
     if (result.ok) {
-      localStorage.setItem('roomName', data.roomName);
-      localStorage.setItem('userName', data.userName);
+      await setLocalStorageRoomName(data.roomName);
+      await setLocalStorageUserName(data.userName);
       router.push('/device/check');
     } else if (result.error) {
       Swal.fire('error', result.error);
     }
   };
+
+  useEffect(() => {
+    localStorage.clear();
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-6">

@@ -8,31 +8,68 @@ import Alert from '@/components/Alert';
 import { useRouter } from 'next/navigation';
 import { socket } from '@/api/socket-io';
 import Swal from 'sweetalert2';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import useLocalStorage from '@/hook/useLocalStorage';
 
 export default function Page() {
+  const [audioDeviceId, setAudioDeviceId] = useState<string | null>(null);
+  const [webcamDeviceId, setWebcamDeviceId] = useState<string | null>(null);
+  const [speakerDeviceId, setSpeakerDeviceId] = useState<string | null>(null);
+
+  const [localStorageRoomName] = useLocalStorage('roomName', null);
+  const [localStorageUserName] = useLocalStorage('userName', null);
+  const [, setLocalStorageAudioDeviceId] = useLocalStorage(
+    'audioDeviceId',
+    null,
+  );
+  const [, setLocalStorageWebcamDeviceId] = useLocalStorage(
+    'webcamDeviceId',
+    null,
+  );
+  const [, setLocalStorageSpeakerDeviceId] = useLocalStorage(
+    'speakerDeviceId',
+    null,
+  );
+
   const isPermissionUserMedia = useCheckUserMedia('both');
   const router = useRouter();
 
+  const getAudioDeviceId = (deviceId: string) => {
+    setAudioDeviceId(deviceId);
+  };
+  const getWebcamDeviceId = (deviceId: string) => {
+    setWebcamDeviceId(deviceId);
+  };
+  const getSpeakerDeviceId = (deviceId: string) => {
+    setSpeakerDeviceId(deviceId);
+  };
+
   useEffect(() => {
-    if (
-      !localStorage.getItem('userName') ||
-      !localStorage.getItem('roomName')
-    ) {
+    if (!localStorageRoomName || !localStorageUserName) {
       router.push(`/`);
     }
   }, []);
 
   useEffect(() => {
-    socket.on('enterTheRoom', async (data) => {
-      if (data.ok) {
-        router.push(`/room/${localStorage.getItem('roomName')}`);
-      } else if (data.error) {
-        await Swal.fire('error', data.error);
-        router.push(`/`);
-      }
-    });
-  }, []);
+    if (audioDeviceId && webcamDeviceId) {
+      socket.on('enterTheRoom', async (data) => {
+        if (data.ok) {
+          setLocalStorageAudioDeviceId(audioDeviceId);
+          setLocalStorageWebcamDeviceId(webcamDeviceId);
+          if (speakerDeviceId) {
+            setLocalStorageSpeakerDeviceId(speakerDeviceId);
+          }
+          router.push(`/room/${localStorageRoomName}`);
+        } else if (data.error) {
+          await Swal.fire('error', data.error);
+          router.push(`/`);
+        } else {
+          await Swal.fire('error', 'System Configuration Settings Failed.');
+          router.push(`/`);
+        }
+      });
+    }
+  }, [audioDeviceId, webcamDeviceId, speakerDeviceId]);
 
   return (
     <>
@@ -43,13 +80,13 @@ export default function Page() {
           </div>
           <div className="flex justify-center items-end xl:flex-nowrap flex-wrap  gap-8">
             <div className="w-96">
-              <WebcamTest />
+              <WebcamTest getDeviceId={getWebcamDeviceId} />
             </div>
             <div className=" w-96">
-              <AudioTest />
+              <AudioTest getDeviceId={getAudioDeviceId} />
             </div>
             <div className=" w-96">
-              <Speaker isSoundTest={true} />
+              <Speaker isSoundTest={true} getDeviceId={getSpeakerDeviceId} />
             </div>
           </div>
           <div className="flex justify-center">
@@ -58,8 +95,8 @@ export default function Page() {
               className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md mt-4"
               onClick={() =>
                 socket.emit('enterTheRoom', {
-                  roomName: localStorage.getItem('roomName'),
-                  userName: localStorage.getItem('userName'),
+                  roomName: localStorageRoomName,
+                  userName: localStorageUserName,
                 })
               }
             >

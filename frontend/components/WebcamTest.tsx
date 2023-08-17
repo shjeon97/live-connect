@@ -9,7 +9,11 @@ interface WebcamDevice {
   label: string;
 }
 
-const WebcamTest: React.FC = () => {
+interface WebcamProps {
+  getDeviceId?: any;
+}
+
+const WebcamTest: React.FC<WebcamProps> = ({ getDeviceId }) => {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [webcams, setWebcams] = useState<WebcamDevice[]>([]);
   const [webcam, setWebcam] = useState<any>(null);
@@ -51,6 +55,12 @@ const WebcamTest: React.FC = () => {
       webcamRef.current.srcObject = webcam;
     }
   }, [webcamRef, webcam]);
+
+  useEffect(() => {
+    if (getDeviceId) {
+      getDeviceId(deviceId);
+    }
+  }, [deviceId]);
 
   const handleWebcamChange = async (event: ChangeEvent<HTMLSelectElement>) => {
     setDeviceId(event.target.value);

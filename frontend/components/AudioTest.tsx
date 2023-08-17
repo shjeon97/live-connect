@@ -8,11 +8,14 @@ interface AudioDevice {
   deviceId: string;
   label: string;
 }
+interface AudioProps {
+  getDeviceId?: any;
+}
 
-const AudioTest: React.FC = () => {
+const AudioTest: React.FC<AudioProps> = ({ getDeviceId }) => {
   const [volume, setVolume] = useState<number>(0);
   const [audios, setAudios] = useState<AudioDevice[]>([]);
-  const [deviceId, setDeviceId] = useState<string>('default');
+  const [deviceId, setDeviceId] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const isPermissionUserMediaAudio = useCheckUserMedia('audio');
 
@@ -42,33 +45,35 @@ const AudioTest: React.FC = () => {
 
     const getAudioStream = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            deviceId,
-            echoCancellation: true,
-            noiseSuppression: true,
-          },
-        });
+        if (deviceId) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              deviceId,
+              echoCancellation: true,
+              noiseSuppression: true,
+            },
+          });
 
-        const audioContext = new AudioContext();
-        const analyser = audioContext.createAnalyser();
-        const source = audioContext.createMediaStreamSource(stream);
-        source.connect(analyser);
-        analyser.fftSize = 256;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
+          const audioContext = new AudioContext();
+          const analyser = audioContext.createAnalyser();
+          const source = audioContext.createMediaStreamSource(stream);
+          source.connect(analyser);
+          analyser.fftSize = 256;
+          const bufferLength = analyser.frequencyBinCount;
+          const dataArray = new Uint8Array(bufferLength);
 
-        const updateVolume = () => {
-          if (!isMuted) {
-            analyser.getByteFrequencyData(dataArray);
-            const total = dataArray.reduce((acc, value) => acc + value, 0);
-            const average = total / bufferLength;
-            setVolume(average);
-          }
-          requestAnimationFrame(updateVolume);
-        };
+          const updateVolume = () => {
+            if (!isMuted) {
+              analyser.getByteFrequencyData(dataArray);
+              const total = dataArray.reduce((acc, value) => acc + value, 0);
+              const average = total / bufferLength;
+              setVolume(average);
+            }
+            requestAnimationFrame(updateVolume);
+          };
 
-        updateVolume();
+          updateVolume();
+        }
       } catch (err) {
         console.error('Error accessing microphone:', err);
       }
@@ -88,6 +93,12 @@ const AudioTest: React.FC = () => {
   ) => {
     setDeviceId(event.target.value);
   };
+
+  useEffect(() => {
+    if (getDeviceId) {
+      getDeviceId(deviceId);
+    }
+  }, [deviceId]);
 
   return (
     <>
