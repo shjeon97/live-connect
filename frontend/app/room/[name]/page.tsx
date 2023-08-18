@@ -6,7 +6,14 @@ import Speaker from '@/components/Speaker';
 import useCheckUserMedia from '@/hook/useCheckUserMedia';
 import useLocalStorage from '@/hook/useLocalStorage';
 import { useRouter } from 'next/navigation';
-import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ChangeEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import Swal from 'sweetalert2';
 
 enum MessageType {
@@ -45,9 +52,10 @@ export default function Page({ params }: { params: { name: string } }) {
   const [isWebcamOff, setIsWebcamOff] = useState<boolean>(false);
   const isPermissionUserMediaVideo = useCheckUserMedia('video');
   const webcamRef = useRef<any>(null);
-  const [myPeerConnection] = useState<RTCPeerConnection>(
-    new RTCPeerConnection(servers),
-  );
+  // const [myPeerConnection] =
+  //   useState<RTCPeerConnection | null>(null);
+
+  const myPeerConnections: RTCPeerConnection[] = useMemo(() => [], []);
 
   const volumeRef = useRef<any>(null);
   const [audios, setAudios] = useState<Device[]>([]);
@@ -61,12 +69,12 @@ export default function Page({ params }: { params: { name: string } }) {
 
   const [localStorageRoomName] = useLocalStorage('roomName', null);
   const [localStorageUserName] = useLocalStorage('userName', null);
-  const [localStorageAudioDeviceId, setLocalStorageAudioDeviceId] =
-    useLocalStorage('audioDeviceId', null);
-  const [localStorageWebcamDeviceId, setLocalStorageWebcamDeviceId] =
-    useLocalStorage('webcamDeviceId', null);
-  const [localStorageSpeakerDeviceId, setLocalStorageSpeakerDeviceId] =
-    useLocalStorage('speakerDeviceId', null);
+  const [localStorageAudioDeviceId] = useLocalStorage('audioDeviceId', null);
+  const [localStorageWebcamDeviceId] = useLocalStorage('webcamDeviceId', null);
+  const [localStorageSpeakerDeviceId] = useLocalStorage(
+    'speakerDeviceId',
+    null,
+  );
 
   const handleWebcams = useCallback((mediaDevices: MediaDeviceInfo[]) => {
     const webcamDevices = mediaDevices
@@ -257,15 +265,18 @@ export default function Page({ params }: { params: { name: string } }) {
         socket.emit('ice', { ice: data.candidate, roomName: params.name });
       }
     };
-    if (isDevicesReady && webrtcStream) {
+    if (isDevicesReady && webrtcStream?.active) {
       const makeConnection = async () => {
-        myPeerConnection.addEventListener('icecandidate', handleIce);
-        myPeerConnection.addEventListener('track', handleTrack);
+        if (!myPeerConnections[0]) {
+          myPeerConnections[0] = new RTCPeerConnection(servers);
+        }
+        myPeerConnections[0].addEventListener('icecandidate', handleIce);
+        myPeerConnections[0].addEventListener('track', handleTrack);
 
         webrtcStream
           .getTracks()
           .forEach((track: any) =>
-            myPeerConnection.addTrack(track, webrtcStream),
+            myPeerConnections[0].addTrack(track, webrtcStream),
           );
       };
 
@@ -279,12 +290,12 @@ export default function Page({ params }: { params: { name: string } }) {
 
           await makeConnection();
 
-          const offer = await myPeerConnection.createOffer();
+          const offer = await myPeerConnections[0].createOffer();
 
-          await myPeerConnection.setLocalDescription(offer);
+          await myPeerConnections[0].setLocalDescription(offer);
           console.log('sent the offer');
           socket.emit('offer', {
-            offer: myPeerConnection.localDescription,
+            offer: myPeerConnections[0].localDescription,
             roomName: params.name,
           });
         } else if (data.error) {
@@ -318,13 +329,14 @@ export default function Page({ params }: { params: { name: string } }) {
       socket.on('offer', async (data) => {
         if (data.ok) {
           console.log('received the offer');
+
           await makeConnection();
-          await myPeerConnection.setRemoteDescription(data.offer);
-          const answer = await myPeerConnection.createAnswer();
-          await myPeerConnection.setLocalDescription(answer);
+          await myPeerConnections[0].setRemoteDescription(data.offer);
+          const answer = await myPeerConnections[0].createAnswer();
+          await myPeerConnections[0].setLocalDescription(answer);
           console.log('sent the answer');
           socket.emit('answer', {
-            answer: myPeerConnection.localDescription,
+            answer: myPeerConnections[0].localDescription,
             roomName: params.name,
           });
         } else if (data.error) {
@@ -335,7 +347,7 @@ export default function Page({ params }: { params: { name: string } }) {
       socket.on('answer', async (data) => {
         if (data.ok) {
           console.log('received the answer');
-          await myPeerConnection.setRemoteDescription(data.answer);
+          await myPeerConnections[0].setRemoteDescription(data.answer);
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -344,7 +356,7 @@ export default function Page({ params }: { params: { name: string } }) {
       socket.on('ice', async (data) => {
         if (data.ok) {
           console.log('received candidate');
-          await myPeerConnection.addIceCandidate(data.ice);
+          await myPeerConnections[0].addIceCandidate(data.ice);
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -354,12 +366,36 @@ export default function Page({ params }: { params: { name: string } }) {
         router.push(`/device/check`);
       });
       return () => {
-        if (myPeerConnection) {
-          myPeerConnection.close();
+        if (myPeerConnections[0]) {
+          myPeerConnections[0].close();
         }
       };
     }
-  }, [isDevicesReady, myPeerConnection, params.name, router, webrtcStream]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isDevicesReady,
+    localStorageRoomName,
+    localStorageUserName,
+    myPeerConnections,
+    params.name,
+    router,
+    webrtcStream?.active,
+  ]);
+
+  useEffect(() => {
+    if (isDevicesReady && webrtcStream?.active && !myPeerConnections[0]) {
+      socket.emit('userEnterTheRoom', {
+        roomName: localStorageRoomName,
+        userName: localStorageUserName,
+      });
+    }
+  }, [
+    isDevicesReady,
+    localStorageRoomName,
+    localStorageUserName,
+    myPeerConnections,
+    webrtcStream?.active,
+  ]);
 
   useEffect(() => {
     if (webcamDeviceId && audioDeviceId && webcamRef) {
@@ -375,10 +411,14 @@ export default function Page({ params }: { params: { name: string } }) {
           },
         });
 
-        if (webrtcStream && webrtcStream.id !== stream.id && myPeerConnection) {
+        if (
+          webrtcStream &&
+          webrtcStream.id !== stream.id &&
+          myPeerConnections[0]
+        ) {
           const videoTrack = stream.getVideoTracks()[0];
 
-          const videoSender = myPeerConnection
+          const videoSender = myPeerConnections[0]
             .getSenders()
             .find((sender: any) => sender.track.kind === 'video');
           if (videoSender) {
@@ -388,7 +428,7 @@ export default function Page({ params }: { params: { name: string } }) {
           const audioTrack = stream.getAudioTracks()[0];
           audioTrack.enabled = !isMuted;
 
-          const audioSender = myPeerConnection
+          const audioSender = myPeerConnections[0]
             .getSenders()
             .find((sender: any) => sender.track.kind === 'audio');
           if (audioSender) {
@@ -414,8 +454,8 @@ export default function Page({ params }: { params: { name: string } }) {
     audioDeviceId,
     webcamRef,
     webrtcStream,
-    myPeerConnection,
     isMuted,
+    myPeerConnections,
   ]);
 
   return (

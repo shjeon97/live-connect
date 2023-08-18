@@ -95,25 +95,37 @@ export class SocketIoGateway
         }
         this.server.to(socket.id).emit('enterTheRoom', {
           ok: true,
+          // socketId: socket.id,
         });
 
         socket.join(data.roomName);
-
-        setTimeout(async () => {
-          socket.broadcast.to(data.roomName).emit('userEnterTheRoom', {
-            ok: true,
-            userName: data.userName,
-            totalUsersCount: await this.totalCountOfUsersInTheRoom(
-              data.roomName,
-            ),
-          });
-        }, 2000);
       }
     } catch (error) {
       this.logger.error(error);
       this.server.to(socket.id).emit('enterTheRoom', {
         ok: false,
         error: 'Error while entering the room',
+      });
+    }
+  }
+
+  @SubscribeMessage('userEnterTheRoom')
+  async userEnterTheRoom(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody()
+    data: { roomName: string; userName: string },
+  ) {
+    try {
+      socket.broadcast.to(data.roomName).emit('userEnterTheRoom', {
+        ok: true,
+        userName: data.userName,
+        totalUsersCount: await this.totalCountOfUsersInTheRoom(data.roomName),
+      });
+    } catch (error) {
+      this.logger.error(error);
+      socket.broadcast.to(data.roomName).emit('userEnterTheRoom', {
+        ok: false,
+        error: 'Error user entered the room',
       });
     }
   }
