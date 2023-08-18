@@ -150,13 +150,6 @@ export default function Page({ params }: { params: { name: string } }) {
     }
   };
 
-  const handleIce = (data: any) => {
-    if (data.candidate) {
-      console.log('sent candidate');
-      socket.emit('ice', { ice: data.candidate, roomName: params.name });
-    }
-  };
-
   const handleTrack = async (event: any) => {
     if (event.streams[0]) {
       if (event.track.kind === 'video') {
@@ -175,7 +168,7 @@ export default function Page({ params }: { params: { name: string } }) {
     } else {
       socket.emit('findSocketIo');
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (webcams.length === 0 && isPermissionUserMediaVideo) {
@@ -188,7 +181,7 @@ export default function Page({ params }: { params: { name: string } }) {
     if (!webcamDeviceId && webcams && webcams[0]) {
       setWebcamDeviceId(localStorageWebcamDeviceId);
     }
-  }, [webcamDeviceId, webcams]);
+  }, [localStorageWebcamDeviceId, webcamDeviceId, webcams]);
 
   useEffect(() => {
     let stream: MediaStream;
@@ -242,7 +235,7 @@ export default function Page({ params }: { params: { name: string } }) {
         stream.getTracks().forEach((track: any) => track.stop());
       }
     };
-  }, [audioDeviceId, isMuted]);
+  }, [audioDeviceId, isMuted, webrtcStream]);
 
   useEffect(() => {
     if (audios.length === 0 && isPermissionUserMediaAudio) {
@@ -255,9 +248,15 @@ export default function Page({ params }: { params: { name: string } }) {
     if (!audioDeviceId && audios && audios[0]) {
       setAudioDeviceId(localStorageAudioDeviceId);
     }
-  }, [audioDeviceId, audios]);
+  }, [audioDeviceId, audios, localStorageAudioDeviceId]);
 
   useEffect(() => {
+    const handleIce = (data: any) => {
+      if (data.candidate) {
+        console.log('sent candidate');
+        socket.emit('ice', { ice: data.candidate, roomName: params.name });
+      }
+    };
     if (isDevicesReady && webrtcStream) {
       const makeConnection = async () => {
         myPeerConnection.addEventListener('icecandidate', handleIce);
@@ -360,7 +359,7 @@ export default function Page({ params }: { params: { name: string } }) {
         }
       };
     }
-  }, [isDevicesReady, webrtcStream]);
+  }, [isDevicesReady, myPeerConnection, params.name, router, webrtcStream]);
 
   useEffect(() => {
     if (webcamDeviceId && audioDeviceId && webcamRef) {
@@ -410,7 +409,14 @@ export default function Page({ params }: { params: { name: string } }) {
 
       setIsDevicesReady(true);
     }
-  }, [webcamDeviceId, audioDeviceId, webcamRef]);
+  }, [
+    webcamDeviceId,
+    audioDeviceId,
+    webcamRef,
+    webrtcStream,
+    myPeerConnection,
+    isMuted,
+  ]);
 
   return (
     <div className="min-h-screen max-h-screen">
@@ -422,13 +428,13 @@ export default function Page({ params }: { params: { name: string } }) {
                 <>
                   {webcams[0]?.deviceId && webcamDeviceId && (
                     <div className="relative">
-                      <>
-                        <video
-                          ref={webcamRef}
-                          autoPlay={true}
-                          playsInline={true}
-                        />
-                      </>
+                      <video
+                        className=" h-full"
+                        ref={webcamRef}
+                        autoPlay={true}
+                        playsInline={true}
+                        muted={true}
+                      />
                       <div className=" absolute bottom-10  px-2 py-1 rounded-xl bg-black text-white ">
                         {localStorageUserName}
                       </div>
@@ -541,7 +547,9 @@ export default function Page({ params }: { params: { name: string } }) {
                 </>
                 <div>
                   <div>speaker</div>
-                  <Speaker />
+                  <Speaker
+                    localStorageSpeakerDeviceId={localStorageSpeakerDeviceId}
+                  />
                 </div>
               </div>
             </div>
@@ -580,9 +588,12 @@ export default function Page({ params }: { params: { name: string } }) {
               </button>
             </form>
           </div>
-          <div className="w-96">
-            <video ref={webrtcWebcamRef} autoPlay={true} playsInline={true} />
-          </div>
+          <video
+            className="w-96 h-72"
+            ref={webrtcWebcamRef}
+            autoPlay={true}
+            playsInline={true}
+          />
         </div>
       )}
     </div>

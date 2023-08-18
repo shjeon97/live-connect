@@ -54,7 +54,7 @@ export default function Home() {
       };
       handleDeleteSocketIo();
     }
-  }, []);
+  }, [localStorageRoomName, localStorageUserName]);
 
   const onSubmit = async (data: FormData) => {
     if (!socket.id) {

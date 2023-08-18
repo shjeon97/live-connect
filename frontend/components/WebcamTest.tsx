@@ -60,7 +60,7 @@ const WebcamTest: React.FC<WebcamProps> = ({ getDeviceId }) => {
     if (getDeviceId) {
       getDeviceId(deviceId);
     }
-  }, [deviceId]);
+  }, [deviceId, getDeviceId]);
 
   const handleWebcamChange = async (event: ChangeEvent<HTMLSelectElement>) => {
     setDeviceId(event.target.value);

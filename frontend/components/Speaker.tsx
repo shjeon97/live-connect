@@ -12,11 +12,13 @@ interface SpeakerDevice {
 interface SpeakerProps {
   isSoundTest?: boolean;
   getDeviceId?: any;
+  localStorageSpeakerDeviceId?: string;
 }
 
 const Speaker: React.FC<SpeakerProps> = ({
   isSoundTest = false,
   getDeviceId = null,
+  localStorageSpeakerDeviceId = null,
 }) => {
   const [speakers, setSpeakers] = useState<SpeakerDevice[]>([]);
   const [deviceId, setDeviceId] = useState<string | null>(null);
@@ -24,16 +26,24 @@ const Speaker: React.FC<SpeakerProps> = ({
   const speakerRef = useRef<HTMLMediaElement>(null);
   const browserType = useBrowserType();
 
-  const handleSpeakers = useCallback((mediaDevices: MediaDeviceInfo[]) => {
-    const speakerDevices = mediaDevices
-      .filter(
-        ({ kind, deviceId }) =>
-          kind === 'audiooutput' && deviceId !== 'default',
-      )
-      .map(({ deviceId, label }) => ({ deviceId, label }));
-    setSpeakers(speakerDevices);
-    setDeviceId(speakerDevices[0]?.deviceId);
-  }, []);
+  const handleSpeakers = useCallback(
+    (mediaDevices: MediaDeviceInfo[]) => {
+      const speakerDevices = mediaDevices
+        .filter(
+          ({ kind, deviceId }) =>
+            kind === 'audiooutput' && deviceId !== 'default',
+        )
+        .map(({ deviceId, label }) => ({ deviceId, label }));
+      setSpeakers(speakerDevices);
+
+      setDeviceId(
+        localStorageSpeakerDeviceId
+          ? localStorageSpeakerDeviceId
+          : speakerDevices[0]?.deviceId,
+      );
+    },
+    [localStorageSpeakerDeviceId],
+  );
 
   useEffect(() => {
     if (speakers.length === 0 && isPermissionUserMediaSpeaker) {
@@ -60,7 +70,7 @@ const Speaker: React.FC<SpeakerProps> = ({
     if (getDeviceId) {
       getDeviceId(deviceId);
     }
-  }, [deviceId]);
+  }, [deviceId, getDeviceId]);
 
   const handleSpeakerDeviceChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setDeviceId(event.target.value);
@@ -87,6 +97,7 @@ const Speaker: React.FC<SpeakerProps> = ({
               <select
                 className="w-full p-2"
                 onChange={handleSpeakerDeviceChange}
+                defaultValue={deviceId ? deviceId : 'undefined'}
               >
                 {speakers.map((speaker, key) => (
                   <option key={key} value={speaker.deviceId}>

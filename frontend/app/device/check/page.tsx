@@ -48,7 +48,7 @@ export default function Page() {
     if (!localStorageRoomName || !localStorageUserName) {
       router.push(`/`);
     }
-  }, []);
+  }, [localStorageRoomName, localStorageUserName, router]);
 
   useEffect(() => {
     if (audioDeviceId && webcamDeviceId) {
@@ -69,7 +69,16 @@ export default function Page() {
         }
       });
     }
-  }, [audioDeviceId, webcamDeviceId, speakerDeviceId]);
+  }, [
+    audioDeviceId,
+    webcamDeviceId,
+    speakerDeviceId,
+    setLocalStorageAudioDeviceId,
+    setLocalStorageWebcamDeviceId,
+    router,
+    localStorageRoomName,
+    setLocalStorageSpeakerDeviceId,
+  ]);
 
   return (
     <>

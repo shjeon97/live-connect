@@ -98,7 +98,7 @@ const AudioTest: React.FC<AudioProps> = ({ getDeviceId }) => {
     if (getDeviceId) {
       getDeviceId(deviceId);
     }
-  }, [deviceId]);
+  }, [deviceId, getDeviceId]);
 
   return (
     <>
