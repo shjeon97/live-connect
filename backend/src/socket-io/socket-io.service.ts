@@ -54,12 +54,10 @@ export class SocketIoService {
   async deleteSocketIo({ clientId }: DeleteSocketIoInput): Promise<CoreOutput> {
     try {
       const exist = await this.socketIo.findOne({ where: { clientId } });
-      console.log(exist);
 
       if (!exist) {
         return {
           ok: false,
-          error: 'not found socket io',
         };
       }
       await this.socketIo.delete({ clientId: exist.clientId });

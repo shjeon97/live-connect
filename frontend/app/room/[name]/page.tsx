@@ -3,6 +3,7 @@
 import { socket } from '@/api/socket-io';
 import Alert from '@/components/Alert';
 import Speaker from '@/components/Speaker';
+import WebrctDevice from '@/components/WebrtcDevice';
 import useCheckUserMedia from '@/hook/useCheckUserMedia';
 import useLocalStorage from '@/hook/useLocalStorage';
 import { useRouter } from 'next/navigation';
@@ -52,10 +53,9 @@ export default function Page({ params }: { params: { name: string } }) {
   const [isWebcamOff, setIsWebcamOff] = useState<boolean>(false);
   const isPermissionUserMediaVideo = useCheckUserMedia('video');
   const webcamRef = useRef<any>(null);
-  // const [myPeerConnection] =
-  //   useState<RTCPeerConnection | null>(null);
 
   const myPeerConnections: RTCPeerConnection[] = useMemo(() => [], []);
+  const [socketIds, setSocketIds] = useState<string[]>([]);
 
   const volumeRef = useRef<any>(null);
   const [audios, setAudios] = useState<Device[]>([]);
@@ -65,7 +65,10 @@ export default function Page({ params }: { params: { name: string } }) {
 
   const isPermissionUserMedia = useCheckUserMedia('both');
   const router = useRouter();
-  const webrtcWebcamRef = useRef<any>(null);
+  const webrtcWebcamRef = useRef<any>();
+  const [webrtcWebcams, setWebrtcWebcams] = useState<any[]>([]);
+
+  const webrtcVolumeRef = useRef<any>();
 
   const [localStorageRoomName] = useLocalStorage('roomName', null);
   const [localStorageUserName] = useLocalStorage('userName', null);
@@ -161,8 +164,25 @@ export default function Page({ params }: { params: { name: string } }) {
   const handleTrack = async (event: any) => {
     if (event.streams[0]) {
       if (event.track.kind === 'video') {
-        webrtcWebcamRef.current.srcObject = event.streams[0];
+        // webrtcWebcamRef.current.srcObject = event.streams[0];
+        webrtcWebcams.push(event.streams[0]);
+        setWebrtcWebcams(webrtcWebcams);
       } else if (event.track.kind === 'audio') {
+        // const audioContext = new AudioContext();
+        // const analyser = audioContext.createAnalyser();
+        // const source = audioContext.createMediaStreamSource(event.streams[0]);
+        // source.connect(analyser);
+        // analyser.fftSize = 256;
+        // const bufferLength = analyser.frequencyBinCount;
+        // const dataArray = new Uint8Array(bufferLength);
+        // const updateVolume = () => {
+        //   analyser.getByteFrequencyData(dataArray);
+        //   const total = dataArray.reduce((acc, value) => acc + value, 0);
+        //   const average = total / bufferLength;
+        //   webrtcVolumeRef.current.value = average.toFixed(2);
+        //   requestAnimationFrame(updateVolume);
+        // };
+        // updateVolume();
       }
     }
   };
@@ -259,44 +279,53 @@ export default function Page({ params }: { params: { name: string } }) {
   }, [audioDeviceId, audios, localStorageAudioDeviceId]);
 
   useEffect(() => {
+    let peerConnectionSocketId: string;
     const handleIce = (data: any) => {
-      if (data.candidate) {
+      if (data.candidate && peerConnectionSocketId) {
         console.log('sent candidate');
-        socket.emit('ice', { ice: data.candidate, roomName: params.name });
+        socket.emit('ice', {
+          ice: data.candidate,
+          roomName: params.name,
+          socketId: peerConnectionSocketId,
+        });
       }
     };
     if (isDevicesReady && webrtcStream?.active) {
-      const makeConnection = async () => {
-        if (!myPeerConnections[0]) {
-          myPeerConnections[0] = new RTCPeerConnection(servers);
+      const makeConnection = async (socketId: any) => {
+        setSocketIds([socketId, ...socketIds]);
+        peerConnectionSocketId = socketId;
+
+        if (!myPeerConnections[socketId]) {
+          myPeerConnections[socketId] = new RTCPeerConnection(servers);
         }
-        myPeerConnections[0].addEventListener('icecandidate', handleIce);
-        myPeerConnections[0].addEventListener('track', handleTrack);
+        myPeerConnections[socketId].addEventListener('icecandidate', handleIce);
+        myPeerConnections[socketId].addEventListener('track', handleTrack);
 
         webrtcStream
           .getTracks()
           .forEach((track: any) =>
-            myPeerConnections[0].addTrack(track, webrtcStream),
+            myPeerConnections[socketId].addTrack(track, webrtcStream),
           );
       };
 
       socket.on('userEnterTheRoom', async (data) => {
-        if (data.ok) {
+        if (data.ok && data.socketId && data.userName) {
           setMessages((prevMessages) => [
             ...prevMessages,
             { type: MessageType.ENTER, message: `${data.userName} entered.` },
           ]);
           setTotalUsersCount(data.totalUsersCount);
 
-          await makeConnection();
+          await makeConnection(data.socketId);
 
-          const offer = await myPeerConnections[0].createOffer();
+          const offer = await myPeerConnections[data.socketId].createOffer();
 
-          await myPeerConnections[0].setLocalDescription(offer);
+          await myPeerConnections[data.socketId].setLocalDescription(offer);
           console.log('sent the offer');
           socket.emit('offer', {
-            offer: myPeerConnections[0].localDescription,
+            offer: myPeerConnections[data.socketId].localDescription,
             roomName: params.name,
+            socketId: data.socketId,
           });
         } else if (data.error) {
           await Swal.fire('error', data.error);
@@ -327,17 +356,20 @@ export default function Page({ params }: { params: { name: string } }) {
       });
 
       socket.on('offer', async (data) => {
-        if (data.ok) {
+        if (data.ok && data.socketId) {
           console.log('received the offer');
 
-          await makeConnection();
-          await myPeerConnections[0].setRemoteDescription(data.offer);
-          const answer = await myPeerConnections[0].createAnswer();
-          await myPeerConnections[0].setLocalDescription(answer);
+          await makeConnection(data.socketId);
+          await myPeerConnections[data.socketId].setRemoteDescription(
+            data.offer,
+          );
+          const answer = await myPeerConnections[data.socketId].createAnswer();
+          await myPeerConnections[data.socketId].setLocalDescription(answer);
           console.log('sent the answer');
           socket.emit('answer', {
-            answer: myPeerConnections[0].localDescription,
+            answer: myPeerConnections[data.socketId].localDescription,
             roomName: params.name,
+            socketId: data.socketId,
           });
         } else if (data.error) {
           await Swal.fire('error', data.error);
@@ -345,18 +377,25 @@ export default function Page({ params }: { params: { name: string } }) {
       });
 
       socket.on('answer', async (data) => {
-        if (data.ok) {
+        if (data.ok && data.socketId) {
           console.log('received the answer');
-          await myPeerConnections[0].setRemoteDescription(data.answer);
+
+          if (!myPeerConnections[data.socketId].remoteDescription) {
+            await myPeerConnections[data.socketId].setRemoteDescription(
+              data.answer,
+            );
+          }
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
       });
 
       socket.on('ice', async (data) => {
-        if (data.ok) {
+        if (data.ok && data.socketId && data.totalUsersCount) {
+          setTotalUsersCount(data.totalUsersCount);
           console.log('received candidate');
-          await myPeerConnections[0].addIceCandidate(data.ice);
+
+          await myPeerConnections[data.socketId].addIceCandidate(data.ice);
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -365,11 +404,6 @@ export default function Page({ params }: { params: { name: string } }) {
       socket.on('exitTheRoom', () => {
         router.push(`/device/check`);
       });
-      return () => {
-        if (myPeerConnections[0]) {
-          myPeerConnections[0].close();
-        }
-      };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -398,7 +432,7 @@ export default function Page({ params }: { params: { name: string } }) {
   ]);
 
   useEffect(() => {
-    if (webcamDeviceId && audioDeviceId && webcamRef) {
+    if (webcamDeviceId && audioDeviceId) {
       const getMyStream = async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -411,30 +445,29 @@ export default function Page({ params }: { params: { name: string } }) {
           },
         });
 
-        if (
-          webrtcStream &&
-          webrtcStream.id !== stream.id &&
-          myPeerConnections[0]
-        ) {
+        if (webrtcStream && webrtcStream.id !== stream.id && webrtcWebcamRef) {
           const videoTrack = stream.getVideoTracks()[0];
-
-          const videoSender = myPeerConnections[0]
-            .getSenders()
-            .find((sender: any) => sender.track.kind === 'video');
-          if (videoSender) {
-            await videoSender.replaceTrack(videoTrack);
-          }
-
           const audioTrack = stream.getAudioTracks()[0];
           audioTrack.enabled = !isMuted;
 
-          const audioSender = myPeerConnections[0]
-            .getSenders()
-            .find((sender: any) => sender.track.kind === 'audio');
-          if (audioSender) {
-            audioTrack.enabled = !isMuted;
-            await audioSender.replaceTrack(audioTrack);
-          }
+          socketIds.map(async (socketId: any) => {
+            const videoSender = myPeerConnections[socketId]
+              .getSenders()
+              .find((sender: any) => sender.track.kind === 'video');
+            if (videoSender) {
+              await videoSender.replaceTrack(videoTrack);
+            }
+
+            const audioSender = myPeerConnections[socketId]
+              .getSenders()
+              .find((sender: any) => sender.track.kind === 'audio');
+            if (audioSender) {
+              audioTrack.enabled = !isMuted;
+
+              await audioSender.replaceTrack(audioTrack);
+            }
+          });
+
           webcamRef.current.srcObject = stream;
           return;
         }
@@ -449,193 +482,203 @@ export default function Page({ params }: { params: { name: string } }) {
 
       setIsDevicesReady(true);
     }
-  }, [
-    webcamDeviceId,
-    audioDeviceId,
-    webcamRef,
-    webrtcStream,
-    isMuted,
-    myPeerConnections,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webcamDeviceId, audioDeviceId, webcamRef, isMuted, myPeerConnections]);
 
   return (
-    <div className="min-h-screen max-h-screen">
-      {isPermissionUserMedia && (
-        <div className="flex flex-wrap">
-          <div className="flex flex-col justify-between min-h-screen w-96 border-x-4 border-t-4">
-            <div className="relative h-min">
-              {isPermissionUserMediaVideo ? (
-                <>
-                  {webcams[0]?.deviceId && webcamDeviceId && (
-                    <div className="relative">
-                      <video
-                        className=" h-full"
-                        ref={webcamRef}
-                        autoPlay={true}
-                        playsInline={true}
-                        muted={true}
-                      />
-                      <div className=" absolute bottom-10  px-2 py-1 rounded-xl bg-black text-white ">
-                        {localStorageUserName}
-                      </div>
-                      <button
-                        className="absolute bottom-10  right-0  rounded-xl  bg-blue-500 hover:bg-blue-700 text-white  py-1 px-2"
-                        onClick={() => {
-                          setIsWebcamOff(!isWebcamOff);
-                          const tracks =
-                            webcamRef.current.srcObject.getTracks();
-                          tracks.forEach((track: any) => {
-                            track.enabled = !track.enabled;
-                          });
-                        }}
-                      >
-                        {isWebcamOff ? 'on' : 'off'}
-                      </button>
-                      <select
-                        className="w-full p-2"
-                        onChange={handleWebcamChange}
-                        defaultValue={webcamDeviceId}
-                      >
-                        {webcams.map((device: any, key: number) => (
-                          <option key={key} value={device.deviceId}>
-                            {device.label || `Device ${key + 1}`}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {!webcams[0]?.deviceId && (
-                    <Alert type="error" message="Webcam access failed." />
-                  )}
-                </>
-              ) : (
-                <Alert
-                  type="error"
-                  message="It looks like your browser is blocking access to webcam identifiers. Because of this, it’s impossible to detect and manage all available webcams."
-                />
-              )}
-
-              <div className="flex gap-2">
-                <>
-                  {isPermissionUserMediaAudio ? (
-                    <>
-                      {audios[0]?.deviceId && audioDeviceId && (
-                        <div>
-                          <div className="flex gap-2">
-                            <meter
-                              ref={volumeRef}
-                              className="w-full"
-                              max="150"
-                            />
-                            <button onClick={() => setIsMuted(!isMuted)}>
-                              {isMuted ? (
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  className="h-6 w-6"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M5.586 15H4a1 1 0 01-1-1V10a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-                                  />
-                                </svg>
-                              ) : (
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  className="h-6 w-6"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1V10a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-                                  />
-                                </svg>
-                              )}
-                            </button>
-                          </div>
-                          <select
-                            className="w-full p-2"
-                            onChange={handleAudioDeviceChange}
-                            defaultValue={audioDeviceId}
-                          >
-                            {audios.map((audio, key) => (
-                              <option key={key} value={audio.deviceId}>
-                                {audio.label || `Audio ${key + 1}`}
-                              </option>
-                            ))}
-                          </select>
+    <div className="flex">
+      <div className="min-h-screen max-h-screen w-96">
+        {isPermissionUserMedia && (
+          <div className="flex flex-wrap">
+            <div className="flex flex-col justify-between min-h-screen w-96 border-x-4 border-t-4">
+              <div className="relative h-min">
+                {isPermissionUserMediaVideo ? (
+                  <>
+                    {webcams[0]?.deviceId && webcamDeviceId && (
+                      <div className="relative">
+                        <video
+                          className=" h-full"
+                          ref={webcamRef}
+                          autoPlay={true}
+                          playsInline={true}
+                          muted={true}
+                        />
+                        <div className=" absolute bottom-10  px-2 py-1 rounded-xl bg-black text-white ">
+                          {localStorageUserName}
                         </div>
-                      )}
-                      {!audios[0]?.deviceId && (
-                        <Alert type="error" message="Audio access failed." />
-                      )}
-                    </>
-                  ) : (
-                    <Alert
-                      type="error"
-                      message="It looks like your browser is blocking access to audio identifiers. Because of this, it’s impossible to detect and manage all available audio."
-                    />
-                  )}
-                </>
-                <div>
-                  <div>speaker</div>
-                  <Speaker
-                    localStorageSpeakerDeviceId={localStorageSpeakerDeviceId}
+                        <button
+                          className="absolute bottom-10  right-0  rounded-xl  bg-blue-500 hover:bg-blue-700 text-white  py-1 px-2"
+                          onClick={() => {
+                            setIsWebcamOff(!isWebcamOff);
+                            const tracks =
+                              webcamRef.current.srcObject.getVideoTracks();
+                            tracks.forEach((track: any) => {
+                              track.enabled = !track.enabled;
+                            });
+                          }}
+                        >
+                          {isWebcamOff ? 'on' : 'off'}
+                        </button>
+                        <select
+                          className="w-full p-2"
+                          onChange={handleWebcamChange}
+                          defaultValue={webcamDeviceId}
+                        >
+                          {webcams.map((device: any, key: number) => (
+                            <option key={key} value={device.deviceId}>
+                              {device.label || `Device ${key + 1}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {!webcams[0]?.deviceId && (
+                      <Alert type="error" message="Webcam access failed." />
+                    )}
+                  </>
+                ) : (
+                  <Alert
+                    type="error"
+                    message="It looks like your browser is blocking access to webcam identifiers. Because of this, it’s impossible to detect and manage all available webcams."
                   />
+                )}
+
+                <div className="flex gap-2">
+                  <>
+                    {isPermissionUserMediaAudio ? (
+                      <>
+                        {audios[0]?.deviceId && audioDeviceId && (
+                          <div>
+                            <div className="flex gap-2">
+                              <meter
+                                ref={volumeRef}
+                                className="w-full"
+                                max="150"
+                              />
+                              <button onClick={() => setIsMuted(!isMuted)}>
+                                {isMuted ? (
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-6 w-6"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M5.586 15H4a1 1 0 01-1-1V10a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                                    />
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-6 w-6"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1V10a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                                    />
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                            <select
+                              className="w-full p-2"
+                              onChange={handleAudioDeviceChange}
+                              defaultValue={audioDeviceId}
+                            >
+                              {audios.map((audio, key) => (
+                                <option key={key} value={audio.deviceId}>
+                                  {audio.label || `Audio ${key + 1}`}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        {!audios[0]?.deviceId && (
+                          <Alert type="error" message="Audio access failed." />
+                        )}
+                      </>
+                    ) : (
+                      <Alert
+                        type="error"
+                        message="It looks like your browser is blocking access to audio identifiers. Because of this, it’s impossible to detect and manage all available audio."
+                      />
+                    )}
+                  </>
+                  <div>
+                    <div>speaker</div>
+                    <Speaker
+                      localStorageSpeakerDeviceId={localStorageSpeakerDeviceId}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex justify-between items-center p-2 bg-slate-100 border-y-4">
-              <span className="p-2 bg-black text-white">
-                {localStorageRoomName}
-              </span>
-              <span>Users Count : {totalUsersCount}</span>
-              <span>chat</span>
-              <div className="bg-black"></div>
-            </div>
-            <div className="grow bg-slate-50 ">
-              <div className="w-full max-w-md p-4 border rounded">
-                {messages.map((data, index) =>
-                  renderRoomMessage(
-                    index,
-                    data.type,
-                    data.message,
-                    data.userName,
-                  ),
-                )}
+              <div className="flex justify-between items-center p-2 bg-slate-100 border-y-4">
+                <span className="p-2 bg-black text-white">
+                  {localStorageRoomName}
+                </span>
+                <span>Users Count : {totalUsersCount}</span>
+                <span>chat</span>
+                <div className="bg-black"></div>
               </div>
-            </div>
-            <form onSubmit={handleSendMessage} className="flex flex-col h-min">
-              <textarea
-                className="w-full p-2 border rounded resize-none"
-                rows={5}
-                value={message}
-                onChange={handleMessageChange}
-              />
-              <button
-                type="submit"
-                className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md mb-1"
+              <div className="grow bg-slate-50 ">
+                <div className="w-full max-w-md p-4 border rounded">
+                  {messages.map((data, index) =>
+                    renderRoomMessage(
+                      index,
+                      data.type,
+                      data.message,
+                      data.userName,
+                    ),
+                  )}
+                </div>
+              </div>
+              <form
+                onSubmit={handleSendMessage}
+                className="flex flex-col h-min"
               >
-                submit
-              </button>
-            </form>
+                <textarea
+                  className="w-full p-2 border rounded resize-none"
+                  rows={5}
+                  value={message}
+                  onChange={handleMessageChange}
+                />
+                <button
+                  type="submit"
+                  className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md mb-1"
+                >
+                  submit
+                </button>
+              </form>
+            </div>
+
+            {/* <div className="w-96 ">
+            <video
+              className="h-72"
+              ref={webrtcWebcamRef}
+              autoPlay={true}
+              playsInline={true}
+            />
+            <div className="w-96">
+              <meter ref={webrtcVolumeRef} className="w-full" max="150" />
+            </div>
+          </div> */}
           </div>
-          <video
-            className="w-96 h-72"
-            ref={webrtcWebcamRef}
-            autoPlay={true}
-            playsInline={true}
-          />
-        </div>
-      )}
+        )}
+      </div>
+      <span className="flex flex-wrap">
+        {webrtcWebcams.map((webrtcWebcam, index) => {
+          return <WebrctDevice key={index} webcamStream={webrtcWebcam} />;
+        })}
+      </span>
     </div>
   );
 }

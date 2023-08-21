@@ -95,7 +95,6 @@ export class SocketIoGateway
         }
         this.server.to(socket.id).emit('enterTheRoom', {
           ok: true,
-          // socketId: socket.id,
         });
 
         socket.join(data.roomName);
@@ -120,6 +119,7 @@ export class SocketIoGateway
         ok: true,
         userName: data.userName,
         totalUsersCount: await this.totalCountOfUsersInTheRoom(data.roomName),
+        socketId: socket.id,
       });
     } catch (error) {
       this.logger.error(error);
@@ -171,16 +171,17 @@ export class SocketIoGateway
   async offer(
     @ConnectedSocket() socket: Socket,
     @MessageBody()
-    data: { offer: any; roomName: string },
+    data: { offer: any; roomName: string; socketId: string },
   ) {
     try {
-      socket.broadcast.to(data.roomName).emit('offer', {
+      this.server.to(data.socketId).emit('offer', {
         ok: true,
         offer: data.offer,
+        socketId: socket.id,
       });
     } catch (error) {
       this.logger.error(error);
-      socket.broadcast.to(data.roomName).emit('offer', {
+      this.server.to(data.socketId).emit('offer', {
         ok: false,
         error: 'Fail offer',
       });
@@ -191,16 +192,17 @@ export class SocketIoGateway
   async answer(
     @ConnectedSocket() socket: Socket,
     @MessageBody()
-    data: { answer: any; roomName: string },
+    data: { answer: any; roomName: string; socketId: string },
   ) {
     try {
-      socket.broadcast.to(data.roomName).emit('answer', {
+      this.server.to(data.socketId).emit('answer', {
         ok: true,
         answer: data.answer,
+        socketId: socket.id,
       });
     } catch (error) {
       this.logger.error(error);
-      socket.broadcast.to(data.roomName).emit('answer', {
+      this.server.to(data.socketId).emit('answer', {
         ok: false,
         error: 'Fail answer',
       });
@@ -211,16 +213,18 @@ export class SocketIoGateway
   async ice(
     @ConnectedSocket() socket: Socket,
     @MessageBody()
-    data: { ice: any; roomName: string },
+    data: { ice: any; roomName: string; socketId: string },
   ) {
     try {
-      socket.broadcast.to(data.roomName).emit('ice', {
+      this.server.to(data.socketId).emit('ice', {
         ok: true,
         ice: data.ice,
+        socketId: socket.id,
+        totalUsersCount: await this.totalCountOfUsersInTheRoom(data.roomName),
       });
     } catch (error) {
       this.logger.error(error);
-      socket.broadcast.to(data.roomName).emit('ice', {
+      this.server.to(data.socketId).emit('ice', {
         ok: false,
         error: 'Fail ice',
       });
