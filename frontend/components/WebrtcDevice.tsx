@@ -21,7 +21,12 @@ const WebrctDevice: React.FC<WebrctDeviceProps> = ({
 
   return (
     <span className="w-96 h-72">
-      <video ref={webrtcWebcamRef} autoPlay={true} playsInline={true} />
+      <video
+        className="w-96 h-72"
+        ref={webrtcWebcamRef}
+        autoPlay={true}
+        playsInline={true}
+      />
 
       {/* <div className="w-96">
                   <meter ref={webrtcVolumeRef} className="w-full" max="150" />

@@ -33,6 +33,13 @@ interface Device {
   label: string;
 }
 
+interface WebrtcDevice {
+  socketId: string;
+  stream: MediaStream;
+  webcam: boolean;
+  audio: boolean;
+}
+
 const servers = {
   iceServers: [
     {
@@ -66,7 +73,7 @@ export default function Page({ params }: { params: { name: string } }) {
   const isPermissionUserMedia = useCheckUserMedia('both');
   const router = useRouter();
   const webrtcWebcamRef = useRef<any>();
-  const [webrtcWebcams, setWebrtcWebcams] = useState<any[]>([]);
+  const [webrtcDevices, setWebrtcDevices] = useState<WebrtcDevice[]>([]);
 
   const webrtcVolumeRef = useRef<any>();
 
@@ -158,32 +165,6 @@ export default function Page({ params }: { params: { name: string } }) {
         message,
       });
       setMessage('');
-    }
-  };
-
-  const handleTrack = async (event: any) => {
-    if (event.streams[0]) {
-      if (event.track.kind === 'video') {
-        // webrtcWebcamRef.current.srcObject = event.streams[0];
-        webrtcWebcams.push(event.streams[0]);
-        setWebrtcWebcams(webrtcWebcams);
-      } else if (event.track.kind === 'audio') {
-        // const audioContext = new AudioContext();
-        // const analyser = audioContext.createAnalyser();
-        // const source = audioContext.createMediaStreamSource(event.streams[0]);
-        // source.connect(analyser);
-        // analyser.fftSize = 256;
-        // const bufferLength = analyser.frequencyBinCount;
-        // const dataArray = new Uint8Array(bufferLength);
-        // const updateVolume = () => {
-        //   analyser.getByteFrequencyData(dataArray);
-        //   const total = dataArray.reduce((acc, value) => acc + value, 0);
-        //   const average = total / bufferLength;
-        //   webrtcVolumeRef.current.value = average.toFixed(2);
-        //   requestAnimationFrame(updateVolume);
-        // };
-        // updateVolume();
-      }
     }
   };
 
@@ -282,7 +263,7 @@ export default function Page({ params }: { params: { name: string } }) {
     let peerConnectionSocketId: string;
     const handleIce = (data: any) => {
       if (data.candidate && peerConnectionSocketId) {
-        console.log('sent candidate');
+        // console.log('sent candidate');
         socket.emit('ice', {
           ice: data.candidate,
           roomName: params.name,
@@ -290,6 +271,62 @@ export default function Page({ params }: { params: { name: string } }) {
         });
       }
     };
+    const handleTrack = async (event: any) => {
+      if (event.streams[0]) {
+        if (event.track.kind === 'video') {
+          // webrtcWebcamRef.current.srcObject = event.streams[0];
+
+          const updateWebrtcDevice = webrtcDevices.find(
+            (webrtcDevice) => webrtcDevice.socketId === peerConnectionSocketId,
+          );
+          if (updateWebrtcDevice) {
+            updateWebrtcDevice.webcam = true;
+          } else {
+            webrtcDevices.push({
+              socketId: peerConnectionSocketId,
+              stream: event.streams[0],
+              webcam: true,
+              audio: false,
+            });
+          }
+
+          setWebrtcDevices(webrtcDevices);
+        } else if (event.track.kind === 'audio') {
+          const updateWebrtcDevice = webrtcDevices.find(
+            (webrtcDevice) => webrtcDevice.socketId === peerConnectionSocketId,
+          );
+          if (updateWebrtcDevice) {
+            updateWebrtcDevice.audio = true;
+          } else {
+            webrtcDevices.push({
+              socketId: peerConnectionSocketId,
+              stream: event.streams[0],
+              webcam: false,
+              audio: true,
+            });
+          }
+
+          setWebrtcDevices(webrtcDevices);
+
+          // const audioContext = new AudioContext();
+          // const analyser = audioContext.createAnalyser();
+          // const source = audioContext.createMediaStreamSource(event.streams[0]);
+          // source.connect(analyser);
+          // analyser.fftSize = 256;
+          // const bufferLength = analyser.frequencyBinCount;
+          // const dataArray = new Uint8Array(bufferLength);
+          // const updateVolume = () => {
+          //   analyser.getByteFrequencyData(dataArray);
+          //   const total = dataArray.reduce((acc, value) => acc + value, 0);
+          //   const average = total / bufferLength;
+          //   webrtcVolumeRef.current.value = average.toFixed(2);
+          //   requestAnimationFrame(updateVolume);
+          // };
+          // updateVolume();
+        }
+      }
+    };
+
     if (isDevicesReady && webrtcStream?.active) {
       const makeConnection = async (socketId: any) => {
         setSocketIds([socketId, ...socketIds]);
@@ -321,7 +358,7 @@ export default function Page({ params }: { params: { name: string } }) {
           const offer = await myPeerConnections[data.socketId].createOffer();
 
           await myPeerConnections[data.socketId].setLocalDescription(offer);
-          console.log('sent the offer');
+          // console.log('sent the offer');
           socket.emit('offer', {
             offer: myPeerConnections[data.socketId].localDescription,
             roomName: params.name,
@@ -338,6 +375,17 @@ export default function Page({ params }: { params: { name: string } }) {
           { type: MessageType.EXIT, message: `${data.userName} exited.` },
         ]);
         setTotalUsersCount(data.totalUsersCount);
+        myPeerConnections[data.socketId].close();
+        myPeerConnections.filter(
+          (myPeerConnection) =>
+            myPeerConnection === myPeerConnections[data.socketId],
+        );
+
+        setWebrtcDevices(
+          webrtcDevices.filter(
+            (webrtcWebcam) => webrtcWebcam.socketId !== data.socketId,
+          ),
+        );
       });
 
       socket.on('sendRoomMessage', async (data) => {
@@ -357,7 +405,7 @@ export default function Page({ params }: { params: { name: string } }) {
 
       socket.on('offer', async (data) => {
         if (data.ok && data.socketId) {
-          console.log('received the offer');
+          // console.log('received the offer');
 
           await makeConnection(data.socketId);
           await myPeerConnections[data.socketId].setRemoteDescription(
@@ -365,7 +413,7 @@ export default function Page({ params }: { params: { name: string } }) {
           );
           const answer = await myPeerConnections[data.socketId].createAnswer();
           await myPeerConnections[data.socketId].setLocalDescription(answer);
-          console.log('sent the answer');
+          // console.log('sent the answer');
           socket.emit('answer', {
             answer: myPeerConnections[data.socketId].localDescription,
             roomName: params.name,
@@ -378,8 +426,13 @@ export default function Page({ params }: { params: { name: string } }) {
 
       socket.on('answer', async (data) => {
         if (data.ok && data.socketId) {
-          console.log('received the answer');
-
+          // console.log('received the answer');
+          setTimeout(() => {
+            setTotalUsersCount(data.totalUsersCount - 1);
+            setTimeout(() => {
+              setTotalUsersCount(data.totalUsersCount);
+            }, 1);
+          }, 1);
           if (!myPeerConnections[data.socketId].remoteDescription) {
             await myPeerConnections[data.socketId].setRemoteDescription(
               data.answer,
@@ -393,7 +446,14 @@ export default function Page({ params }: { params: { name: string } }) {
       socket.on('ice', async (data) => {
         if (data.ok && data.socketId && data.totalUsersCount) {
           setTotalUsersCount(data.totalUsersCount);
-          console.log('received candidate');
+          // console.log('received candidate');
+
+          setTimeout(() => {
+            setTotalUsersCount(data.totalUsersCount - 1);
+            setTimeout(() => {
+              setTotalUsersCount(data.totalUsersCount);
+            }, 1);
+          }, 1);
 
           await myPeerConnections[data.socketId].addIceCandidate(data.ice);
         } else if (data.error) {
@@ -486,8 +546,8 @@ export default function Page({ params }: { params: { name: string } }) {
   }, [webcamDeviceId, audioDeviceId, webcamRef, isMuted, myPeerConnections]);
 
   return (
-    <div className="flex">
-      <div className="min-h-screen max-h-screen w-96">
+    <div className="flex lg:flex-nowrap flex-wrap">
+      <div className="min-h-screen  w-96">
         {isPermissionUserMedia && (
           <div className="flex flex-wrap">
             <div className="flex flex-col justify-between min-h-screen w-96 border-x-4 border-t-4">
@@ -497,7 +557,7 @@ export default function Page({ params }: { params: { name: string } }) {
                     {webcams[0]?.deviceId && webcamDeviceId && (
                       <div className="relative">
                         <video
-                          className=" h-full"
+                          className="h-76"
                           ref={webcamRef}
                           autoPlay={true}
                           playsInline={true}
@@ -675,8 +735,10 @@ export default function Page({ params }: { params: { name: string } }) {
         )}
       </div>
       <span className="flex flex-wrap">
-        {webrtcWebcams.map((webrtcWebcam, index) => {
-          return <WebrctDevice key={index} webcamStream={webrtcWebcam} />;
+        {webrtcDevices.map((webrtcWebcam, index) => {
+          return (
+            <WebrctDevice key={index} webcamStream={webrtcWebcam.stream} />
+          );
         })}
       </span>
     </div>

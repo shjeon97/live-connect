@@ -52,6 +52,7 @@ export class SocketIoGateway
         totalUsersCount: await this.totalCountOfUsersInTheRoom(
           socketIo.roomName,
         ),
+        socketId: socket.id,
       });
       this.socketIo.delete(socketIo);
     } catch (error) {
