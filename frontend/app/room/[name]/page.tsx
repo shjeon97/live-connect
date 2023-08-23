@@ -61,7 +61,9 @@ export default function Page({ params }: { params: { name: string } }) {
   const isPermissionUserMediaVideo = useCheckUserMedia('video');
   const webcamRef = useRef<any>(null);
 
-  const myPeerConnections: RTCPeerConnection[] = useMemo(() => [], []);
+  const [myPeerConnections, setMyPeerConnection] = useState<
+    RTCPeerConnection[]
+  >([]);
   const [socketIds, setSocketIds] = useState<string[]>([]);
 
   const volumeRef = useRef<any>(null);
@@ -258,6 +260,7 @@ export default function Page({ params }: { params: { name: string } }) {
       setAudioDeviceId(localStorageAudioDeviceId);
     }
   }, [audioDeviceId, audios, localStorageAudioDeviceId]);
+  console.log(myPeerConnections);
 
   useEffect(() => {
     let peerConnectionSocketId: string;
@@ -274,8 +277,6 @@ export default function Page({ params }: { params: { name: string } }) {
     const handleTrack = async (event: any) => {
       if (event.streams[0]) {
         if (event.track.kind === 'video') {
-          // webrtcWebcamRef.current.srcObject = event.streams[0];
-
           const updateWebrtcDevice = webrtcDevices.find(
             (webrtcDevice) => webrtcDevice.socketId === peerConnectionSocketId,
           );
@@ -289,8 +290,6 @@ export default function Page({ params }: { params: { name: string } }) {
               audio: false,
             });
           }
-
-          setWebrtcDevices(webrtcDevices);
         } else if (event.track.kind === 'audio') {
           const updateWebrtcDevice = webrtcDevices.find(
             (webrtcDevice) => webrtcDevice.socketId === peerConnectionSocketId,
@@ -343,6 +342,8 @@ export default function Page({ params }: { params: { name: string } }) {
           .forEach((track: any) =>
             myPeerConnections[socketId].addTrack(track, webrtcStream),
           );
+
+        setMyPeerConnection(myPeerConnections);
       };
 
       socket.on('userEnterTheRoom', async (data) => {
@@ -364,6 +365,7 @@ export default function Page({ params }: { params: { name: string } }) {
             roomName: params.name,
             socketId: data.socketId,
           });
+          setMyPeerConnection(myPeerConnections);
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -376,16 +378,18 @@ export default function Page({ params }: { params: { name: string } }) {
         ]);
         setTotalUsersCount(data.totalUsersCount);
         myPeerConnections[data.socketId].close();
-        myPeerConnections.filter(
+        const updateMyePeerConnections = myPeerConnections.filter(
           (myPeerConnection) =>
-            myPeerConnection === myPeerConnections[data.socketId],
+            myPeerConnection !== myPeerConnections[data.socketId],
         );
 
-        setWebrtcDevices(
-          webrtcDevices.filter(
-            (webrtcWebcam) => webrtcWebcam.socketId !== data.socketId,
-          ),
+        setMyPeerConnection(updateMyePeerConnections);
+
+        const updateWebrtcDevices = webrtcDevices.filter(
+          (webrtcWebcam) => webrtcWebcam.socketId !== data.socketId,
         );
+
+        setWebrtcDevices(updateWebrtcDevices);
       });
 
       socket.on('sendRoomMessage', async (data) => {
@@ -419,6 +423,8 @@ export default function Page({ params }: { params: { name: string } }) {
             roomName: params.name,
             socketId: data.socketId,
           });
+
+          setMyPeerConnection(myPeerConnections);
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -437,6 +443,8 @@ export default function Page({ params }: { params: { name: string } }) {
             await myPeerConnections[data.socketId].setRemoteDescription(
               data.answer,
             );
+
+            setMyPeerConnection(myPeerConnections);
           }
         } else if (data.error) {
           await Swal.fire('error', data.error);
@@ -456,6 +464,8 @@ export default function Page({ params }: { params: { name: string } }) {
           }, 1);
 
           await myPeerConnections[data.socketId].addIceCandidate(data.ice);
+
+          setMyPeerConnection(myPeerConnections);
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -511,6 +521,9 @@ export default function Page({ params }: { params: { name: string } }) {
           audioTrack.enabled = !isMuted;
 
           socketIds.map(async (socketId: any) => {
+            if (!myPeerConnections[socketId]) {
+              return;
+            }
             const videoSender = myPeerConnections[socketId]
               .getSenders()
               .find((sender: any) => sender.track.kind === 'video');
