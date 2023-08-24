@@ -63,10 +63,11 @@ export default function Page({ params }: { params: { name: string } }) {
   const isPermissionUserMediaVideo = useCheckUserMedia('video');
   const webcamRef = useRef<any>(null);
 
-  const [myPeerConnections, setMyPeerConnection] = useState<
-    RTCPeerConnection[]
-  >([]);
-  // const [socketIds, setSocketIds] = useState<string[]>([]);
+  // const [myPeerConnections, setMyPeerConnection] = useState<
+  //   RTCPeerConnection[]
+  // >([]);
+
+  const myPeerConnections = useRef<RTCPeerConnection[]>([]);
 
   const socketIds = useRef<string[]>([]);
 
@@ -79,7 +80,8 @@ export default function Page({ params }: { params: { name: string } }) {
   const isPermissionUserMedia = useCheckUserMedia('both');
   const router = useRouter();
   const webrtcWebcamRef = useRef<any>();
-  const [webrtcDevices, setWebrtcDevices] = useState<WebrtcDevice[]>([]);
+  // const [webrtcDevices, setWebrtcDevices] = useState<WebrtcDevice[]>([]);
+  const webrtcDevices = useRef<WebrtcDevice[]>([]);
 
   const webrtcVolumeRef = useRef<any>();
 
@@ -184,17 +186,18 @@ export default function Page({ params }: { params: { name: string } }) {
       });
     }
   };
+
   const handleTrack = async (event: any) => {
     if (event.streams[0]) {
       if (event.track.kind === 'video') {
-        const updateWebrtcDevice = webrtcDevices.find(
+        const updateWebrtcDevice = webrtcDevices.current.find(
           (webrtcDevice) =>
             webrtcDevice.socketId === peerConnectionSocketId.current,
         );
         if (updateWebrtcDevice) {
           updateWebrtcDevice.webcam = true;
         } else {
-          webrtcDevices.push({
+          webrtcDevices.current.push({
             socketId: peerConnectionSocketId.current,
             stream: event.streams[0],
             webcam: true,
@@ -202,22 +205,20 @@ export default function Page({ params }: { params: { name: string } }) {
           });
         }
       } else if (event.track.kind === 'audio') {
-        const updateWebrtcDevice = webrtcDevices.find(
+        const updateWebrtcDevice = webrtcDevices.current.find(
           (webrtcDevice) =>
             webrtcDevice.socketId === peerConnectionSocketId.current,
         );
         if (updateWebrtcDevice) {
           updateWebrtcDevice.audio = true;
         } else {
-          webrtcDevices.push({
+          webrtcDevices.current.push({
             socketId: peerConnectionSocketId.current,
             stream: event.streams[0],
             webcam: false,
             audio: true,
           });
         }
-
-        setWebrtcDevices(webrtcDevices);
 
         // const audioContext = new AudioContext();
         // const analyser = audioContext.createAnalyser();
@@ -240,26 +241,25 @@ export default function Page({ params }: { params: { name: string } }) {
 
   const makeConnection = async (socketId: any) => {
     const addSocketIds = [...socketIds.current, socketId];
-    console.log(myPeerConnections[socketId]);
-    console.log(socketId);
 
     socketIds.current = addSocketIds;
 
     peerConnectionSocketId.current = socketId;
 
-    if (!myPeerConnections[socketId]) {
-      myPeerConnections[socketId] = new RTCPeerConnection(servers);
+    if (!myPeerConnections.current[socketId]) {
+      myPeerConnections.current[socketId] = new RTCPeerConnection(servers);
     }
-    myPeerConnections[socketId].addEventListener('icecandidate', handleIce);
-    myPeerConnections[socketId].addEventListener('track', handleTrack);
+    myPeerConnections.current[socketId].addEventListener(
+      'icecandidate',
+      handleIce,
+    );
+    myPeerConnections.current[socketId].addEventListener('track', handleTrack);
 
     webrtcStream
       .getTracks()
       .forEach((track: any) =>
-        myPeerConnections[socketId].addTrack(track, webrtcStream),
+        myPeerConnections.current[socketId].addTrack(track, webrtcStream),
       );
-
-    setMyPeerConnection(myPeerConnections);
   };
 
   useEffect(() => {
@@ -366,16 +366,19 @@ export default function Page({ params }: { params: { name: string } }) {
 
           await makeConnection(data.socketId);
 
-          const offer = await myPeerConnections[data.socketId].createOffer();
+          const offer = await myPeerConnections.current[
+            data.socketId
+          ].createOffer();
 
-          await myPeerConnections[data.socketId].setLocalDescription(offer);
+          await myPeerConnections.current[data.socketId].setLocalDescription(
+            offer,
+          );
           console.log('sent the offer');
           socket.emit('offer', {
-            offer: myPeerConnections[data.socketId].localDescription,
+            offer: myPeerConnections.current[data.socketId].localDescription,
             roomName: params.name,
             socketId: data.socketId,
           });
-          setMyPeerConnection(myPeerConnections);
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -387,19 +390,17 @@ export default function Page({ params }: { params: { name: string } }) {
           { type: MessageType.EXIT, message: `${data.userName} exited.` },
         ]);
         setTotalUsersCount(data.totalUsersCount);
-        myPeerConnections[data.socketId].close();
-        const updateMyePeerConnections = myPeerConnections.filter(
+
+        myPeerConnections.current = myPeerConnections.current.filter(
           (myPeerConnection) =>
-            myPeerConnection !== myPeerConnections[data.socketId],
+            myPeerConnection !== myPeerConnections.current[data.socketId],
         );
 
-        setMyPeerConnection(updateMyePeerConnections);
-
-        const updateWebrtcDevices = webrtcDevices.filter(
+        webrtcDevices.current = webrtcDevices.current.filter(
           (webrtcWebcam) => webrtcWebcam.socketId !== data.socketId,
         );
 
-        setWebrtcDevices(updateWebrtcDevices);
+        console.log(webrtcDevices.current);
 
         socketIds.current = socketIds.current.filter(
           (socketId) => socketId !== data.socketId,
@@ -426,19 +427,21 @@ export default function Page({ params }: { params: { name: string } }) {
           console.log('received the offer');
 
           await makeConnection(data.socketId);
-          await myPeerConnections[data.socketId].setRemoteDescription(
-            data.offer,
+          myPeerConnections.current[data.socketId].setRemoteDescription(
+            await data.offer,
           );
-          const answer = await myPeerConnections[data.socketId].createAnswer();
-          await myPeerConnections[data.socketId].setLocalDescription(answer);
+          const answer = await myPeerConnections.current[
+            data.socketId
+          ].createAnswer();
+          await myPeerConnections.current[data.socketId].setLocalDescription(
+            answer,
+          );
           console.log('sent the answer');
           socket.emit('answer', {
-            answer: myPeerConnections[data.socketId].localDescription,
+            answer: myPeerConnections.current[data.socketId].localDescription,
             roomName: params.name,
             socketId: data.socketId,
           });
-
-          setMyPeerConnection(myPeerConnections);
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -453,12 +456,10 @@ export default function Page({ params }: { params: { name: string } }) {
               setTotalUsersCount(data.totalUsersCount);
             }, 1);
           }, 1);
-          if (!myPeerConnections[data.socketId].remoteDescription) {
-            await myPeerConnections[data.socketId].setRemoteDescription(
+          if (!myPeerConnections.current[data.socketId].remoteDescription) {
+            await myPeerConnections.current[data.socketId].setRemoteDescription(
               data.answer,
             );
-
-            setMyPeerConnection(myPeerConnections);
           }
         } else if (data.error) {
           await Swal.fire('error', data.error);
@@ -477,9 +478,9 @@ export default function Page({ params }: { params: { name: string } }) {
             }, 1);
           }, 1);
 
-          await myPeerConnections[data.socketId].addIceCandidate(data.ice);
-
-          setMyPeerConnection(myPeerConnections);
+          await myPeerConnections.current[data.socketId].addIceCandidate(
+            data.ice,
+          );
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -499,7 +500,11 @@ export default function Page({ params }: { params: { name: string } }) {
   ]);
 
   useEffect(() => {
-    if (isDevicesReady && webrtcStream?.active && !myPeerConnections[0]) {
+    if (
+      isDevicesReady &&
+      webrtcStream?.active &&
+      !myPeerConnections.current[0]
+    ) {
       socket.emit('userEnterTheRoom', {
         roomName: localStorageRoomName,
         userName: localStorageUserName,
@@ -533,17 +538,17 @@ export default function Page({ params }: { params: { name: string } }) {
           audioTrack.enabled = !isMuted;
 
           socketIds.current.map(async (socketId: any) => {
-            if (!myPeerConnections[socketId]) {
+            if (!myPeerConnections.current[socketId]) {
               return;
             }
-            const videoSender = myPeerConnections[socketId]
+            const videoSender = myPeerConnections.current[socketId]
               .getSenders()
               .find((sender: any) => sender.track.kind === 'video');
             if (videoSender) {
               await videoSender.replaceTrack(videoTrack);
             }
 
-            const audioSender = myPeerConnections[socketId]
+            const audioSender = myPeerConnections.current[socketId]
               .getSenders()
               .find((sender: any) => sender.track.kind === 'audio');
             if (audioSender) {
@@ -760,7 +765,7 @@ export default function Page({ params }: { params: { name: string } }) {
         )}
       </div>
       <span className="flex flex-wrap">
-        {webrtcDevices.map((webrtcWebcam, index) => {
+        {webrtcDevices.current.map((webrtcWebcam, index) => {
           return (
             <WebrctDevice key={index} webcamStream={webrtcWebcam.stream} />
           );
