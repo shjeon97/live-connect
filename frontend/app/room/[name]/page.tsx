@@ -54,6 +54,8 @@ export default function Page({ params }: { params: { name: string } }) {
   const [totalUsersCount, setTotalUsersCount] = useState(0);
   const [webrtcStream, setWebrtcStream] = useState<any>(null);
   const [isDevicesReady, setIsDevicesReady] = useState(false);
+  const [isFirst, setIsFirst] = useState<boolean>(true);
+  const peerConnectionSocketId = useRef<string>('');
 
   const [webcamDeviceId, setWebcamDeviceId] = useState<string | null>(null);
   const [webcams, setWebcams] = useState<Device[]>([]);
@@ -64,7 +66,9 @@ export default function Page({ params }: { params: { name: string } }) {
   const [myPeerConnections, setMyPeerConnection] = useState<
     RTCPeerConnection[]
   >([]);
-  const [socketIds, setSocketIds] = useState<string[]>([]);
+  // const [socketIds, setSocketIds] = useState<string[]>([]);
+
+  const socketIds = useRef<string[]>([]);
 
   const volumeRef = useRef<any>(null);
   const [audios, setAudios] = useState<Device[]>([]);
@@ -170,6 +174,94 @@ export default function Page({ params }: { params: { name: string } }) {
     }
   };
 
+  const handleIce = (data: any) => {
+    if (data.candidate && peerConnectionSocketId.current) {
+      console.log('sent candidate');
+      socket.emit('ice', {
+        ice: data.candidate,
+        roomName: params.name,
+        socketId: peerConnectionSocketId.current,
+      });
+    }
+  };
+  const handleTrack = async (event: any) => {
+    if (event.streams[0]) {
+      if (event.track.kind === 'video') {
+        const updateWebrtcDevice = webrtcDevices.find(
+          (webrtcDevice) =>
+            webrtcDevice.socketId === peerConnectionSocketId.current,
+        );
+        if (updateWebrtcDevice) {
+          updateWebrtcDevice.webcam = true;
+        } else {
+          webrtcDevices.push({
+            socketId: peerConnectionSocketId.current,
+            stream: event.streams[0],
+            webcam: true,
+            audio: false,
+          });
+        }
+      } else if (event.track.kind === 'audio') {
+        const updateWebrtcDevice = webrtcDevices.find(
+          (webrtcDevice) =>
+            webrtcDevice.socketId === peerConnectionSocketId.current,
+        );
+        if (updateWebrtcDevice) {
+          updateWebrtcDevice.audio = true;
+        } else {
+          webrtcDevices.push({
+            socketId: peerConnectionSocketId.current,
+            stream: event.streams[0],
+            webcam: false,
+            audio: true,
+          });
+        }
+
+        setWebrtcDevices(webrtcDevices);
+
+        // const audioContext = new AudioContext();
+        // const analyser = audioContext.createAnalyser();
+        // const source = audioContext.createMediaStreamSource(event.streams[0]);
+        // source.connect(analyser);
+        // analyser.fftSize = 256;
+        // const bufferLength = analyser.frequencyBinCount;
+        // const dataArray = new Uint8Array(bufferLength);
+        // const updateVolume = () => {
+        //   analyser.getByteFrequencyData(dataArray);
+        //   const total = dataArray.reduce((acc, value) => acc + value, 0);
+        //   const average = total / bufferLength;
+        //   webrtcVolumeRef.current.value = average.toFixed(2);
+        //   requestAnimationFrame(updateVolume);
+        // };
+        // updateVolume();
+      }
+    }
+  };
+
+  const makeConnection = async (socketId: any) => {
+    const addSocketIds = [...socketIds.current, socketId];
+    console.log(myPeerConnections[socketId]);
+    console.log(socketId);
+
+    socketIds.current = addSocketIds;
+
+    peerConnectionSocketId.current = socketId;
+
+    if (!myPeerConnections[socketId]) {
+      myPeerConnections[socketId] = new RTCPeerConnection(servers);
+    }
+    myPeerConnections[socketId].addEventListener('icecandidate', handleIce);
+    myPeerConnections[socketId].addEventListener('track', handleTrack);
+
+    webrtcStream
+      .getTracks()
+      .forEach((track: any) =>
+        myPeerConnections[socketId].addTrack(track, webrtcStream),
+      );
+
+    setMyPeerConnection(myPeerConnections);
+  };
+
   useEffect(() => {
     if (
       !localStorage.getItem('userName') ||
@@ -260,92 +352,10 @@ export default function Page({ params }: { params: { name: string } }) {
       setAudioDeviceId(localStorageAudioDeviceId);
     }
   }, [audioDeviceId, audios, localStorageAudioDeviceId]);
-  console.log(myPeerConnections);
 
   useEffect(() => {
-    let peerConnectionSocketId: string;
-    const handleIce = (data: any) => {
-      if (data.candidate && peerConnectionSocketId) {
-        // console.log('sent candidate');
-        socket.emit('ice', {
-          ice: data.candidate,
-          roomName: params.name,
-          socketId: peerConnectionSocketId,
-        });
-      }
-    };
-    const handleTrack = async (event: any) => {
-      if (event.streams[0]) {
-        if (event.track.kind === 'video') {
-          const updateWebrtcDevice = webrtcDevices.find(
-            (webrtcDevice) => webrtcDevice.socketId === peerConnectionSocketId,
-          );
-          if (updateWebrtcDevice) {
-            updateWebrtcDevice.webcam = true;
-          } else {
-            webrtcDevices.push({
-              socketId: peerConnectionSocketId,
-              stream: event.streams[0],
-              webcam: true,
-              audio: false,
-            });
-          }
-        } else if (event.track.kind === 'audio') {
-          const updateWebrtcDevice = webrtcDevices.find(
-            (webrtcDevice) => webrtcDevice.socketId === peerConnectionSocketId,
-          );
-          if (updateWebrtcDevice) {
-            updateWebrtcDevice.audio = true;
-          } else {
-            webrtcDevices.push({
-              socketId: peerConnectionSocketId,
-              stream: event.streams[0],
-              webcam: false,
-              audio: true,
-            });
-          }
-
-          setWebrtcDevices(webrtcDevices);
-
-          // const audioContext = new AudioContext();
-          // const analyser = audioContext.createAnalyser();
-          // const source = audioContext.createMediaStreamSource(event.streams[0]);
-          // source.connect(analyser);
-          // analyser.fftSize = 256;
-          // const bufferLength = analyser.frequencyBinCount;
-          // const dataArray = new Uint8Array(bufferLength);
-          // const updateVolume = () => {
-          //   analyser.getByteFrequencyData(dataArray);
-          //   const total = dataArray.reduce((acc, value) => acc + value, 0);
-          //   const average = total / bufferLength;
-          //   webrtcVolumeRef.current.value = average.toFixed(2);
-          //   requestAnimationFrame(updateVolume);
-          // };
-          // updateVolume();
-        }
-      }
-    };
-
-    if (isDevicesReady && webrtcStream?.active) {
-      const makeConnection = async (socketId: any) => {
-        setSocketIds([socketId, ...socketIds]);
-        peerConnectionSocketId = socketId;
-
-        if (!myPeerConnections[socketId]) {
-          myPeerConnections[socketId] = new RTCPeerConnection(servers);
-        }
-        myPeerConnections[socketId].addEventListener('icecandidate', handleIce);
-        myPeerConnections[socketId].addEventListener('track', handleTrack);
-
-        webrtcStream
-          .getTracks()
-          .forEach((track: any) =>
-            myPeerConnections[socketId].addTrack(track, webrtcStream),
-          );
-
-        setMyPeerConnection(myPeerConnections);
-      };
-
+    if (isDevicesReady && webrtcStream?.active && isFirst) {
+      setIsFirst(false);
       socket.on('userEnterTheRoom', async (data) => {
         if (data.ok && data.socketId && data.userName) {
           setMessages((prevMessages) => [
@@ -359,7 +369,7 @@ export default function Page({ params }: { params: { name: string } }) {
           const offer = await myPeerConnections[data.socketId].createOffer();
 
           await myPeerConnections[data.socketId].setLocalDescription(offer);
-          // console.log('sent the offer');
+          console.log('sent the offer');
           socket.emit('offer', {
             offer: myPeerConnections[data.socketId].localDescription,
             roomName: params.name,
@@ -390,6 +400,10 @@ export default function Page({ params }: { params: { name: string } }) {
         );
 
         setWebrtcDevices(updateWebrtcDevices);
+
+        socketIds.current = socketIds.current.filter(
+          (socketId) => socketId !== data.socketId,
+        );
       });
 
       socket.on('sendRoomMessage', async (data) => {
@@ -409,7 +423,7 @@ export default function Page({ params }: { params: { name: string } }) {
 
       socket.on('offer', async (data) => {
         if (data.ok && data.socketId) {
-          // console.log('received the offer');
+          console.log('received the offer');
 
           await makeConnection(data.socketId);
           await myPeerConnections[data.socketId].setRemoteDescription(
@@ -417,7 +431,7 @@ export default function Page({ params }: { params: { name: string } }) {
           );
           const answer = await myPeerConnections[data.socketId].createAnswer();
           await myPeerConnections[data.socketId].setLocalDescription(answer);
-          // console.log('sent the answer');
+          console.log('sent the answer');
           socket.emit('answer', {
             answer: myPeerConnections[data.socketId].localDescription,
             roomName: params.name,
@@ -432,7 +446,7 @@ export default function Page({ params }: { params: { name: string } }) {
 
       socket.on('answer', async (data) => {
         if (data.ok && data.socketId) {
-          // console.log('received the answer');
+          console.log('received the answer');
           setTimeout(() => {
             setTotalUsersCount(data.totalUsersCount - 1);
             setTimeout(() => {
@@ -454,7 +468,7 @@ export default function Page({ params }: { params: { name: string } }) {
       socket.on('ice', async (data) => {
         if (data.ok && data.socketId && data.totalUsersCount) {
           setTotalUsersCount(data.totalUsersCount);
-          // console.log('received candidate');
+          console.log('received candidate');
 
           setTimeout(() => {
             setTotalUsersCount(data.totalUsersCount - 1);
@@ -478,12 +492,10 @@ export default function Page({ params }: { params: { name: string } }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isDevicesReady,
-    localStorageRoomName,
-    localStorageUserName,
     myPeerConnections,
-    params.name,
     router,
     webrtcStream?.active,
+    isFirst,
   ]);
 
   useEffect(() => {
@@ -520,7 +532,7 @@ export default function Page({ params }: { params: { name: string } }) {
           const audioTrack = stream.getAudioTracks()[0];
           audioTrack.enabled = !isMuted;
 
-          socketIds.map(async (socketId: any) => {
+          socketIds.current.map(async (socketId: any) => {
             if (!myPeerConnections[socketId]) {
               return;
             }
