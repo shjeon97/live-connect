@@ -20,7 +20,7 @@ const WebrctDevice: React.FC<WebrctDeviceProps> = ({
   }, [webcamStream]);
 
   return (
-    <span className="w-96 h-72">
+    <span className="w-96 h-72 p-0.5">
       <video
         className="w-96 h-72"
         ref={webrtcWebcamRef}

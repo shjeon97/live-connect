@@ -89,6 +89,8 @@ export default function Home() {
 
   useEffect(() => {
     localStorage.clear();
+    socket.disconnect();
+    socket.connect();
   }, []);
 
   return (

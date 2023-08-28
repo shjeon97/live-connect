@@ -6,15 +6,9 @@ import Speaker from '@/components/Speaker';
 import WebrctDevice from '@/components/WebrtcDevice';
 import useCheckUserMedia from '@/hook/useCheckUserMedia';
 import useLocalStorage from '@/hook/useLocalStorage';
+import usePreventRefresh from '@/hook/usePreventRefresh';
 import { useRouter } from 'next/navigation';
-import {
-  ChangeEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
 enum MessageType {
@@ -40,6 +34,11 @@ interface WebrtcDevice {
   audio: boolean;
 }
 
+interface MyPeerConnection {
+  socketId: string;
+  peerConnection: RTCPeerConnection;
+}
+
 const servers = {
   iceServers: [
     {
@@ -62,12 +61,7 @@ export default function Page({ params }: { params: { name: string } }) {
   const [isWebcamOff, setIsWebcamOff] = useState<boolean>(false);
   const isPermissionUserMediaVideo = useCheckUserMedia('video');
   const webcamRef = useRef<any>(null);
-
-  // const [myPeerConnections, setMyPeerConnection] = useState<
-  //   RTCPeerConnection[]
-  // >([]);
-
-  const myPeerConnections = useRef<RTCPeerConnection[]>([]);
+  const myPeerConnections = useRef<MyPeerConnection[]>([]);
 
   const socketIds = useRef<string[]>([]);
 
@@ -80,7 +74,6 @@ export default function Page({ params }: { params: { name: string } }) {
   const isPermissionUserMedia = useCheckUserMedia('both');
   const router = useRouter();
   const webrtcWebcamRef = useRef<any>();
-  // const [webrtcDevices, setWebrtcDevices] = useState<WebrtcDevice[]>([]);
   const webrtcDevices = useRef<WebrtcDevice[]>([]);
 
   const webrtcVolumeRef = useRef<any>();
@@ -93,6 +86,8 @@ export default function Page({ params }: { params: { name: string } }) {
     'speakerDeviceId',
     null,
   );
+
+  usePreventRefresh();
 
   const handleWebcams = useCallback((mediaDevices: MediaDeviceInfo[]) => {
     const webcamDevices = mediaDevices
@@ -239,6 +234,17 @@ export default function Page({ params }: { params: { name: string } }) {
     }
   };
 
+  const findMyPeerConnection = async (socketId: string) => {
+    let result: MyPeerConnection | undefined;
+
+    myPeerConnections.current.forEach((myPeerConnection) => {
+      if (myPeerConnection.socketId === socketId) {
+        result = myPeerConnection;
+      }
+    });
+    return result;
+  };
+
   const makeConnection = async (socketId: any) => {
     const addSocketIds = [...socketIds.current, socketId];
 
@@ -246,19 +252,25 @@ export default function Page({ params }: { params: { name: string } }) {
 
     peerConnectionSocketId.current = socketId;
 
-    if (!myPeerConnections.current[socketId]) {
-      myPeerConnections.current[socketId] = new RTCPeerConnection(servers);
+    if (!(await findMyPeerConnection(socketId))) {
+      myPeerConnections.current.push({
+        socketId,
+        peerConnection: new RTCPeerConnection(servers),
+      });
     }
-    myPeerConnections.current[socketId].addEventListener(
+
+    const myPeerConnection = await findMyPeerConnection(socketId);
+
+    myPeerConnection?.peerConnection.addEventListener(
       'icecandidate',
       handleIce,
     );
-    myPeerConnections.current[socketId].addEventListener('track', handleTrack);
+    myPeerConnection?.peerConnection.addEventListener('track', handleTrack);
 
     webrtcStream
       .getTracks()
       .forEach((track: any) =>
-        myPeerConnections.current[socketId].addTrack(track, webrtcStream),
+        myPeerConnection?.peerConnection.addTrack(track, webrtcStream),
       );
   };
 
@@ -366,16 +378,14 @@ export default function Page({ params }: { params: { name: string } }) {
 
           await makeConnection(data.socketId);
 
-          const offer = await myPeerConnections.current[
-            data.socketId
-          ].createOffer();
+          const myPeerConnection = await findMyPeerConnection(data.socketId);
 
-          await myPeerConnections.current[data.socketId].setLocalDescription(
-            offer,
-          );
+          const offer = await myPeerConnection?.peerConnection.createOffer();
+
+          await myPeerConnection?.peerConnection.setLocalDescription(offer);
           console.log('sent the offer');
           socket.emit('offer', {
-            offer: myPeerConnections.current[data.socketId].localDescription,
+            offer: myPeerConnection?.peerConnection.localDescription,
             roomName: params.name,
             socketId: data.socketId,
           });
@@ -391,16 +401,17 @@ export default function Page({ params }: { params: { name: string } }) {
         ]);
         setTotalUsersCount(data.totalUsersCount);
 
-        myPeerConnections.current = myPeerConnections.current.filter(
-          (myPeerConnection) =>
-            myPeerConnection !== myPeerConnections.current[data.socketId],
-        );
+        const myPeerConnection = await findMyPeerConnection(data.socketId);
+
+        myPeerConnection?.peerConnection.close();
+
+        myPeerConnections.current.filter((myPeerConnection) => {
+          myPeerConnection.socketId !== data.socketId;
+        });
 
         webrtcDevices.current = webrtcDevices.current.filter(
           (webrtcWebcam) => webrtcWebcam.socketId !== data.socketId,
         );
-
-        console.log(webrtcDevices.current);
 
         socketIds.current = socketIds.current.filter(
           (socketId) => socketId !== data.socketId,
@@ -427,18 +438,17 @@ export default function Page({ params }: { params: { name: string } }) {
           console.log('received the offer');
 
           await makeConnection(data.socketId);
-          myPeerConnections.current[data.socketId].setRemoteDescription(
+
+          const myPeerConnection = await findMyPeerConnection(data.socketId);
+
+          myPeerConnection?.peerConnection.setRemoteDescription(
             await data.offer,
           );
-          const answer = await myPeerConnections.current[
-            data.socketId
-          ].createAnswer();
-          await myPeerConnections.current[data.socketId].setLocalDescription(
-            answer,
-          );
+          const answer = await myPeerConnection?.peerConnection.createAnswer();
+          await myPeerConnection?.peerConnection.setLocalDescription(answer);
           console.log('sent the answer');
           socket.emit('answer', {
-            answer: myPeerConnections.current[data.socketId].localDescription,
+            answer: myPeerConnection?.peerConnection.localDescription,
             roomName: params.name,
             socketId: data.socketId,
           });
@@ -456,8 +466,11 @@ export default function Page({ params }: { params: { name: string } }) {
               setTotalUsersCount(data.totalUsersCount);
             }, 1);
           }, 1);
-          if (!myPeerConnections.current[data.socketId].remoteDescription) {
-            await myPeerConnections.current[data.socketId].setRemoteDescription(
+
+          const myPeerConnection = await findMyPeerConnection(data.socketId);
+
+          if (!myPeerConnection?.peerConnection.remoteDescription) {
+            await myPeerConnection?.peerConnection.setRemoteDescription(
               data.answer,
             );
           }
@@ -477,10 +490,9 @@ export default function Page({ params }: { params: { name: string } }) {
               setTotalUsersCount(data.totalUsersCount);
             }, 1);
           }, 1);
+          const myPeerConnection = await findMyPeerConnection(data.socketId);
 
-          await myPeerConnections.current[data.socketId].addIceCandidate(
-            data.ice,
-          );
+          await myPeerConnection?.peerConnection.addIceCandidate(data.ice);
         } else if (data.error) {
           await Swal.fire('error', data.error);
         }
@@ -541,14 +553,17 @@ export default function Page({ params }: { params: { name: string } }) {
             if (!myPeerConnections.current[socketId]) {
               return;
             }
-            const videoSender = myPeerConnections.current[socketId]
+
+            const myPeerConnection = await findMyPeerConnection(socketId);
+
+            const videoSender = myPeerConnection?.peerConnection
               .getSenders()
               .find((sender: any) => sender.track.kind === 'video');
             if (videoSender) {
               await videoSender.replaceTrack(videoTrack);
             }
 
-            const audioSender = myPeerConnections.current[socketId]
+            const audioSender = myPeerConnection?.peerConnection
               .getSenders()
               .find((sender: any) => sender.track.kind === 'audio');
             if (audioSender) {
@@ -577,6 +592,20 @@ export default function Page({ params }: { params: { name: string } }) {
 
   return (
     <div className="flex lg:flex-nowrap flex-wrap">
+      <div
+        onClick={() => {
+          myPeerConnections.current.map((myPeerConnection) => {
+            myPeerConnection.peerConnection.close();
+          });
+          setTimeout(() => {
+            window.location.reload();
+          }, 400);
+          router.push(`/`);
+        }}
+        className="absolute top-2 bg-red-600 right-2 py-2 z-10  hover:cursor-pointer text-white rounded-xl px-3"
+      >
+        out
+      </div>
       <div className="min-h-screen  w-96">
         {isPermissionUserMedia && (
           <div className="flex flex-wrap">
