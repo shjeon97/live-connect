@@ -73,9 +73,7 @@ export default function Page({ params }: { params: { name: string } }) {
 
   const isPermissionUserMedia = useCheckUserMedia('both');
   const router = useRouter();
-  const webrtcWebcamRef = useRef<any>();
   const webrtcDevices = useRef<WebrtcDevice[]>([]);
-
   const webrtcVolumeRef = useRef<any>();
 
   const [localStorageRoomName] = useLocalStorage('roomName', null);
@@ -153,7 +151,7 @@ export default function Page({ params }: { params: { name: string } }) {
         return (
           <div key={index} className="">
             <div>{userName} </div>
-            <textarea className="max-w-xs" defaultValue={message} />
+            <textarea className="max-w-xs w-80" defaultValue={message} />
           </div>
         );
     }
@@ -214,22 +212,6 @@ export default function Page({ params }: { params: { name: string } }) {
             audio: true,
           });
         }
-
-        // const audioContext = new AudioContext();
-        // const analyser = audioContext.createAnalyser();
-        // const source = audioContext.createMediaStreamSource(event.streams[0]);
-        // source.connect(analyser);
-        // analyser.fftSize = 256;
-        // const bufferLength = analyser.frequencyBinCount;
-        // const dataArray = new Uint8Array(bufferLength);
-        // const updateVolume = () => {
-        //   analyser.getByteFrequencyData(dataArray);
-        //   const total = dataArray.reduce((acc, value) => acc + value, 0);
-        //   const average = total / bufferLength;
-        //   webrtcVolumeRef.current.value = average.toFixed(2);
-        //   requestAnimationFrame(updateVolume);
-        // };
-        // updateVolume();
       }
     }
   };
@@ -536,6 +518,9 @@ export default function Page({ params }: { params: { name: string } }) {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             deviceId: webcamDeviceId,
+            width: { max: 720 },
+            height: { max: 480 },
+            frameRate: { max: 5 },
           },
           audio: {
             deviceId: audioDeviceId,
@@ -544,13 +529,18 @@ export default function Page({ params }: { params: { name: string } }) {
           },
         });
 
-        if (webrtcStream && webrtcStream.id !== stream.id && webrtcWebcamRef) {
+        if (webrtcStream && webrtcStream.id !== stream.id) {
           const videoTrack = stream.getVideoTracks()[0];
           const audioTrack = stream.getAudioTracks()[0];
           audioTrack.enabled = !isMuted;
 
           socketIds.current.map(async (socketId: any) => {
-            if (!myPeerConnections.current[socketId]) {
+            console.log(
+              myPeerConnections,
+              await findMyPeerConnection(socketId),
+            );
+
+            if (!(await findMyPeerConnection(socketId))) {
               return;
             }
 
@@ -592,21 +582,7 @@ export default function Page({ params }: { params: { name: string } }) {
 
   return (
     <div className="flex lg:flex-nowrap flex-wrap">
-      <div
-        onClick={() => {
-          myPeerConnections.current.map((myPeerConnection) => {
-            myPeerConnection.peerConnection.close();
-          });
-          setTimeout(() => {
-            window.location.reload();
-          }, 400);
-          router.push(`/`);
-        }}
-        className="absolute top-2 bg-red-600 right-2 py-2 z-10  hover:cursor-pointer text-white rounded-xl px-3"
-      >
-        out
-      </div>
-      <div className="min-h-screen  w-96">
+      <div className="min-h-screen">
         {isPermissionUserMedia && (
           <div className="flex flex-wrap">
             <div className="flex flex-col justify-between min-h-screen w-96 border-x-4 border-t-4">
@@ -624,6 +600,22 @@ export default function Page({ params }: { params: { name: string } }) {
                         />
                         <div className=" absolute bottom-10  px-2 py-1 rounded-xl bg-black text-white ">
                           {localStorageUserName}
+                        </div>
+                        <div
+                          onClick={() => {
+                            myPeerConnections.current.map(
+                              (myPeerConnection) => {
+                                myPeerConnection.peerConnection.close();
+                              },
+                            );
+                            setTimeout(() => {
+                              window.location.reload();
+                            }, 400);
+                            router.push(`/`);
+                          }}
+                          className="absolute top-0 bg-red-600 right-0 py-2 z-10  hover:cursor-pointer text-white rounded-xl px-3"
+                        >
+                          out
                         </div>
                         <button
                           className="absolute bottom-10  right-0  rounded-xl  bg-blue-500 hover:bg-blue-700 text-white  py-1 px-2"
@@ -749,7 +741,7 @@ export default function Page({ params }: { params: { name: string } }) {
                 <div className="bg-black"></div>
               </div>
               <div className="grow bg-slate-50 ">
-                <div className="w-full max-w-md p-4 border rounded">
+                <div className="h-96 max-w-md p-4 border rounded overflow-auto">
                   {messages.map((data, index) =>
                     renderRoomMessage(
                       index,
@@ -766,7 +758,7 @@ export default function Page({ params }: { params: { name: string } }) {
               >
                 <textarea
                   className="w-full p-2 border rounded resize-none"
-                  rows={5}
+                  rows={3}
                   value={message}
                   onChange={handleMessageChange}
                 />
@@ -778,25 +770,18 @@ export default function Page({ params }: { params: { name: string } }) {
                 </button>
               </form>
             </div>
-
-            {/* <div className="w-96 ">
-            <video
-              className="h-72"
-              ref={webrtcWebcamRef}
-              autoPlay={true}
-              playsInline={true}
-            />
-            <div className="w-96">
-              <meter ref={webrtcVolumeRef} className="w-full" max="150" />
-            </div>
-          </div> */}
           </div>
         )}
       </div>
       <span className="flex flex-wrap">
-        {webrtcDevices.current.map((webrtcWebcam, index) => {
+        {webrtcDevices.current.map((webrtcDevice, index) => {
           return (
-            <WebrctDevice key={index} webcamStream={webrtcWebcam.stream} />
+            <WebrctDevice
+              key={index}
+              stream={webrtcDevice.stream}
+              webcam={webrtcDevice.webcam}
+              audio={webrtcDevice.audio}
+            />
           );
         })}
       </span>
